@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detecção de Cor Branca com Contornos</title>
+    <title>Detecção de Objetos Brancos</title>
     <link rel="stylesheet" href="style.css">
 </head>
     <style>
@@ -57,7 +57,6 @@ canvas {
     background-color: #00b4d8;
     margin: 5px;
     border-radius: 8px;
-    transition: width 0.3s, height 0.3s;
 }
 
     </style>
@@ -67,7 +66,7 @@ canvas {
         <canvas id="canvas"></canvas>
         <div id="info">
             <p>Percentual de Branco: <span id="percent-branco">0%</span></p>
-            <p>Caixas Ativas (Objetos Brancos): <span id="contador-caixas">0</span></p>
+            <p>Objetos Brancos Detectados: <span id="contador-caixas">0</span></p>
         </div>
         <div id="boxes"></div>
     </div>
@@ -99,7 +98,6 @@ async function initCamera() {
     }
 }
 
-// Função para detectar branco usando processamento de imagem e contornos
 function processFrame() {
     ctx.drawImage(video, 0, 0, width, height);
     
@@ -107,80 +105,49 @@ function processFrame() {
     const data = imageData.data;
     let whitePixels = 0;
 
-    // Converter a imagem para tons de cinza e aumentar o contraste
+    // Converter para escala HSV para uma melhor distinção
     for (let i = 0; i < data.length; i += 4) {
         const r = data[i];
         const g = data[i + 1];
         const b = data[i + 2];
 
-        const brightness = 0.299 * r + 0.587 * g + 0.114 * b; // Converter para escala de cinza
-        const isWhite = brightness > 200 ? 255 : 0; // Limite para detectar branco
+        // Converter RGB para HSV
+        const { h, s, v } = rgbToHsv(r, g, b);
 
-        data[i] = data[i + 1] = data[i + 2] = isWhite;
+        // Considerar branco apenas se a saturação for baixa e o brilho for alto
+        const isWhite = (s < 0.2 && v > 0.8);
 
-        if (isWhite === 255) {
+        if (isWhite) {
+            data[i] = data[i + 1] = data[i + 2] = 255;
             whitePixels++;
+        } else {
+            data[i] = data[i + 1] = data[i + 2] = 0;
         }
     }
 
     ctx.putImageData(imageData, 0, 0);
-
-    // Aplicar um blur para reduzir ruído
-    ctx.filter = 'blur(2px)';
-    ctx.drawImage(canvas, 0, 0, width, height);
-    ctx.filter = 'none';
-
-    // Detectar contornos para encontrar áreas brancas
     const contours = detectContours(ctx);
     const numContours = contours.length;
 
-    // Atualizar caixas dinâmicas e contadores
     updateBoxes(numContours, whitePixels);
 }
 
-// Função para detectar contornos na imagem em preto e branco
-function detectContours(ctx) {
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const data = imageData.data;
-    const contours = [];
-    
-    const visited = new Array(data.length / 4).fill(false);
-    const threshold = 200; // Limite para detectar branco
+function rgbToHsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const delta = max - min;
+    let h, s, v = max;
 
-    // Detecção simples de contornos usando uma abordagem de busca
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-            const index = (y * width + x) * 4;
-            if (!visited[index / 4] && data[index] === 255) {
-                const size = floodFill(data, visited, x, y);
-                if (size > 50) contours.push({ x, y, size });
-            }
-        }
+    s = max === 0 ? 0 : delta / max;
+    if (max === min) {
+        h = 0;
+    } else {
+        if (max === r) h = (g - b) / delta + (g < b ? 6 : 0);
+        else if (max === g) h = (b - r) / delta + 2;
+        else h = (r - g) / delta + 4;
+        h /= 6;
     }
-    return contours;
-}
-
-// Função Flood Fill para detectar áreas conectadas
-function floodFill(data, visited, x, y) {
-    const stack = [{ x, y }];
-    const width = canvas.width;
-    let size = 0;
-
-    while (stack.length > 0) {
-        const { x, y } = stack.pop();
-        const index = (y * width + x) * 4;
-        if (x < 0 || x >= width || y < 0 || y >= height) continue;
-        if (visited[index / 4] || data[index] !== 255) continue;
-
-        visited[index / 4] = true;
-        size++;
-
-        stack.push({ x: x + 1, y });
-        stack.push({ x: x - 1, y });
-        stack.push({ x, y: y + 1 });
-        stack.push({ x, y: y - 1 });
-    }
-    return size;
+    return { h, s, v };
 }
 
 function updateBoxes(contoursCount, whitePixels) {
