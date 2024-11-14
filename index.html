@@ -3,21 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contador de Objetos Brancos</title>
+    <title>Detecção de Objetos Brancos</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f0f0f0; font-family: Arial, sans-serif; }
-        video { width: 80vw; height: auto; border: 2px solid #0077b6; border-radius: 8px; margin-bottom: 10px; }
+        video { display: block; width: 90vw; height: auto; }
         canvas { display: none; }
         #info { margin-top: 10px; text-align: center; }
-        #boxes { margin-top: 20px; display: flex; flex-wrap: wrap; justify-content: center; }
-        .dynamic-box { background-color: #0077b6; margin: 5px; border-radius: 8px; width: 50px; height: 50px; }
+        #boxes { margin-top: 20px; }
+        .dynamic-box { display: inline-block; background-color: #0077b6; margin: 5px; border-radius: 8px; width: 40px; height: 40px; }
     </style>
 </head>
 <body>
     <video id="camera" autoplay playsinline></video>
     <canvas id="canvas"></canvas>
     <div id="info">
+        <p>Percentual de Branco: <span id="percent-branco">0%</span></p>
         <p>Objetos Brancos Detectados: <span id="contador-caixas">0</span></p>
     </div>
     <div id="boxes"></div>
@@ -26,9 +27,10 @@
         const video = document.getElementById('camera');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        const percentBrancoElem = document.getElementById('percent-branco');
         const contadorCaixasElem = document.getElementById('contador-caixas');
         const boxesContainer = document.getElementById('boxes');
-        
+
         let width, height;
 
         // Função para iniciar a câmera
@@ -52,21 +54,28 @@
             return 0.3 * r + 0.59 * g + 0.11 * b;
         }
 
-        // Função para processar o quadro do vídeo e detectar objetos brancos
+        // Função para processar o quadro do vídeo
         function processFrame() {
             ctx.drawImage(video, 0, 0, width, height);
             const imageData = ctx.getImageData(0, 0, width, height);
             const data = imageData.data;
+            let whitePixels = 0;
 
-            // Aplicar um filtro para detectar áreas brancas
+            // Detectar áreas brancas com base na escala de cinza
             for (let i = 0; i < data.length; i += 4) {
-                const grayscale = toGrayscale(data[i], data[i + 1], data[i + 2]);
-                
-                // Se o pixel é branco o suficiente, destacá-lo
-                if (grayscale > 200 && data[i] > 200 && data[i + 1] > 200 && data[i + 2] > 200) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+
+                // Converter para escala de cinza
+                const grayscale = toGrayscale(r, g, b);
+
+                // Verificar se é um pixel branco (ajustar o limite conforme necessário)
+                if (grayscale > 200 && r > 200 && g > 200 && b > 200) {
                     data[i] = 255;
                     data[i + 1] = 255;
                     data[i + 2] = 255;
+                    whitePixels++;
                 } else {
                     data[i] = 0;
                     data[i + 1] = 0;
@@ -76,54 +85,48 @@
 
             ctx.putImageData(imageData, 0, 0);
 
-            // Detectar contornos para identificar objetos
-            const objectsCount = detectContours(imageData);
+            // Calcular o percentual de branco
+            const totalPixels = width * height;
+            const percentBranco = (whitePixels / totalPixels) * 100;
+            percentBrancoElem.textContent = `${percentBranco.toFixed(2)}%`;
+
+            // Detectar contornos e contar objetos brancos
+            const objectsCount = countWhiteObjects();
             contadorCaixasElem.textContent = objectsCount;
             updateBoxes(objectsCount);
         }
 
-        // Função para detectar contornos usando um algoritmo simples
-        function detectContours(imageData) {
+        // Função para contar objetos brancos detectados
+        function countWhiteObjects() {
+            const imageData = ctx.getImageData(0, 0, width, height);
             const data = imageData.data;
-            let detected = new Set();
             let objects = 0;
+            let detected = new Set();
 
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
                     const index = (y * width + x) * 4;
-                    
-                    // Se o pixel é branco e ainda não foi detectado
                     if (data[index] === 255 && !detected.has(index)) {
-                        const size = floodFill(x, y, detected);
-                        
-                        // Contar apenas se o objeto for grande o suficiente
-                        if (size > 100) {
-                            objects++;
-                        }
+                        floodFill(x, y, detected);
+                        objects++;
                     }
                 }
             }
             return objects;
         }
 
-        // Função de Flood Fill para marcar um objeto
+        // Algoritmo de Flood Fill para detectar contornos
         function floodFill(x, y, detected) {
             const stack = [[x, y]];
-            let size = 0;
-
             while (stack.length) {
                 const [curX, curY] = stack.pop();
                 const index = (curY * width + curX) * 4;
                 if (curX < 0 || curY < 0 || curX >= width || curY >= height || detected.has(index)) continue;
-
                 if (ctx.getImageData(curX, curY, 1, 1).data[0] !== 255) continue;
 
                 detected.add(index);
-                size++;
                 stack.push([curX + 1, curY], [curX - 1, curY], [curX, curY + 1], [curX, curY - 1]);
             }
-
-            return size;
         }
 
         // Atualizar caixas na tela
@@ -137,7 +140,7 @@
         }
 
         function startDetection() {
-            setInterval(processFrame, 300);
+            setInterval(processFrame, 200);
         }
 
         initCamera();
