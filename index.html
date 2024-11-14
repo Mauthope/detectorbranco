@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detecção de Cor Branca</title>
+    <title>Detecção de Cor Branca com Contornos</title>
     <link rel="stylesheet" href="style.css">
 </head>
-  <style>
-    * {
+    <style>
+        * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -60,20 +60,20 @@ canvas {
     transition: width 0.3s, height 0.3s;
 }
 
-  </style>
+    </style>
 <body>
     <div id="container">
         <video id="camera" autoplay playsinline></video>
         <canvas id="canvas"></canvas>
         <div id="info">
             <p>Percentual de Branco: <span id="percent-branco">0%</span></p>
-            <p>Caixas Ativas: <span id="contador-caixas">0</span></p>
+            <p>Caixas Ativas (Objetos Brancos): <span id="contador-caixas">0</span></p>
         </div>
         <div id="boxes"></div>
     </div>
     <script src="script.js"></script>
-  <script>
-    const video = document.getElementById('camera');
+    <script>
+        const video = document.getElementById('camera');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const percentBrancoElem = document.getElementById('percent-branco');
@@ -99,6 +99,7 @@ async function initCamera() {
     }
 }
 
+// Função para detectar branco usando processamento de imagem e contornos
 function processFrame() {
     ctx.drawImage(video, 0, 0, width, height);
     
@@ -106,16 +107,15 @@ function processFrame() {
     const data = imageData.data;
     let whitePixels = 0;
 
-    // Aplicar filtro de preto e branco e aumentar o contraste
+    // Converter a imagem para tons de cinza e aumentar o contraste
     for (let i = 0; i < data.length; i += 4) {
         const r = data[i];
         const g = data[i + 1];
         const b = data[i + 2];
-        
-        // Converter para preto e branco com alto contraste
-        const brightness = (r + g + b) / 3;
-        const isWhite = brightness > 200 ? 255 : 0;
-        
+
+        const brightness = 0.299 * r + 0.587 * g + 0.114 * b; // Converter para escala de cinza
+        const isWhite = brightness > 200 ? 255 : 0; // Limite para detectar branco
+
         data[i] = data[i + 1] = data[i + 2] = isWhite;
 
         if (isWhite === 255) {
@@ -125,38 +125,87 @@ function processFrame() {
 
     ctx.putImageData(imageData, 0, 0);
 
-    // Calcular percentual de branco
-    const totalPixels = width * height;
-    const percentBranco = (whitePixels / totalPixels) * 100;
-    percentBrancoElem.textContent = `${percentBranco.toFixed(2)}%`;
+    // Aplicar um blur para reduzir ruído
+    ctx.filter = 'blur(2px)';
+    ctx.drawImage(canvas, 0, 0, width, height);
+    ctx.filter = 'none';
 
-    // Atualizar caixas
-    updateBoxes(percentBranco);
+    // Detectar contornos para encontrar áreas brancas
+    const contours = detectContours(ctx);
+    const numContours = contours.length;
+
+    // Atualizar caixas dinâmicas e contadores
+    updateBoxes(numContours, whitePixels);
 }
 
-function updateBoxes(percentBranco) {
-    const boxCount = Math.round(percentBranco / 10);
+// Função para detectar contornos na imagem em preto e branco
+function detectContours(ctx) {
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+    const contours = [];
+    
+    const visited = new Array(data.length / 4).fill(false);
+    const threshold = 200; // Limite para detectar branco
+
+    // Detecção simples de contornos usando uma abordagem de busca
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const index = (y * width + x) * 4;
+            if (!visited[index / 4] && data[index] === 255) {
+                const size = floodFill(data, visited, x, y);
+                if (size > 50) contours.push({ x, y, size });
+            }
+        }
+    }
+    return contours;
+}
+
+// Função Flood Fill para detectar áreas conectadas
+function floodFill(data, visited, x, y) {
+    const stack = [{ x, y }];
+    const width = canvas.width;
+    let size = 0;
+
+    while (stack.length > 0) {
+        const { x, y } = stack.pop();
+        const index = (y * width + x) * 4;
+        if (x < 0 || x >= width || y < 0 || y >= height) continue;
+        if (visited[index / 4] || data[index] !== 255) continue;
+
+        visited[index / 4] = true;
+        size++;
+
+        stack.push({ x: x + 1, y });
+        stack.push({ x: x - 1, y });
+        stack.push({ x, y: y + 1 });
+        stack.push({ x, y: y - 1 });
+    }
+    return size;
+}
+
+function updateBoxes(contoursCount, whitePixels) {
+    const percentBranco = (whitePixels / (width * height)) * 100;
+    percentBrancoElem.textContent = `${percentBranco.toFixed(2)}%`;
+
+    contadorCaixasElem.textContent = contoursCount;
     boxesContainer.innerHTML = '';
 
-    for (let i = 0; i < boxCount; i++) {
+    for (let i = 0; i < contoursCount; i++) {
         const box = document.createElement('div');
         box.className = 'dynamic-box';
-        box.style.width = `${20 + percentBranco}px`;
-        box.style.height = `${20 + percentBranco}px`;
+        box.style.width = `${50}px`;
+        box.style.height = `${50}px`;
         boxesContainer.appendChild(box);
     }
-
-    contadorCaixasElem.textContent = boxCount;
 }
 
 function startDetection() {
     setInterval(processFrame, 100);
 }
 
-// Inicializar aplicação
 initCamera();
 video.addEventListener('play', startDetection);
 
-  </script>
+    </script>
 </body>
 </html>
