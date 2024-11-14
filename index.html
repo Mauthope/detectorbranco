@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detector de Linhas Brancas Bem Definidas</title>
+    <title>Detector de Linhas Brancas Contínuas</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f0f0f0; font-family: Arial, sans-serif; }
@@ -78,21 +78,27 @@
                 }
             }
 
-            // Detecção de linhas usando Hough Transform
+            // Detecção de linhas horizontais ou verticais contínuas
             for (let y = 0; y < height; y++) {
+                let whitePixelsHorizontal = 0;
+                let whitePixelsVertical = 0;
                 for (let x = 0; x < width; x++) {
                     const index = (y * width + x) * 4;
                     if (edges[index] === 255) {
-                        let lineLength = 1;
-                        // Verificar continuidade para detectar linhas retas
-                        while (x + lineLength < width && edges[(y * width + (x + lineLength)) * 4] === 255) {
-                            lineLength++;
-                        }
-                        if (lineLength > 20) { // Ignorar pequenas detecções
-                            lines.push({ x, y, length: lineLength });
-                            x += lineLength;
-                        }
+                        whitePixelsHorizontal++;
                     }
+                    if (edges[(x * width + y) * 4] === 255) {
+                        whitePixelsVertical++;
+                    }
+                }
+
+                // Se a linha horizontal tiver pixels brancos suficientes e contínuos
+                if (whitePixelsHorizontal > width * 0.8) {
+                    lines.push({ x: 0, y, direction: 'horizontal', length: whitePixelsHorizontal });
+                }
+                // Se a linha vertical tiver pixels brancos suficientes e contínuos
+                if (whitePixelsVertical > height * 0.8) {
+                    lines.push({ x: 0, y, direction: 'vertical', length: whitePixelsVertical });
                 }
             }
 
@@ -102,9 +108,9 @@
         function checkForCurvedLines(lines) {
             let curvedLineDetected = false;
 
-            // Melhorar detecção de curvas: se a linha não for reta o suficiente, é considerada ondulada
+            // Se uma linha não for contínua ou for muito curta, será considerada ondulada
             for (const line of lines) {
-                if (line.length < 50) { // Se a linha for muito curta, é ignorada
+                if (line.length < 0.8 * (line.direction === 'horizontal' ? width : height)) {
                     curvedLineDetected = true;
                     break;
                 }
