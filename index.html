@@ -50,37 +50,45 @@
             let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             let data = imageData.data;
 
-            // Converter a imagem para preto e branco
+            // Converter a imagem para escala de cinza
             for (let i = 0; i < data.length; i += 4) {
                 const gray = 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
-                data[i] = data[i + 1] = data[i + 2] = gray > 180 ? 255 : 0;
+                data[i] = data[i + 1] = data[i + 2] = gray;
                 data[i + 3] = 255;
             }
             ctx.putImageData(imageData, 0, 0);
 
-            const lines = detectLines(imageData);
+            const edges = detectEdges(imageData);
+            const lines = detectLines(edges);
             contadorLinhasElem.textContent = lines.length;
             checkForCurvedLines(lines);
         }
 
-        function detectLines(imageData) {
-            const edges = new Uint8ClampedArray(imageData.data.length);
-            const { width, height } = imageData;
-            const threshold = 50;
-            const lines = [];
+        function detectEdges(imageData) {
+            const { width, height, data } = imageData;
+            const threshold = 100;
+            const edges = new Uint8ClampedArray(data.length);
 
-            // Canny Edge Detection simplificado (detecção de bordas)
+            // Aplicar filtro de Canny simplificado
             for (let y = 1; y < height - 1; y++) {
                 for (let x = 1; x < width - 1; x++) {
                     const index = (y * width + x) * 4;
-                    const gradientX = imageData.data[index + 4] - imageData.data[index - 4];
-                    const gradientY = imageData.data[index + width * 4] - imageData.data[index - width * 4];
+                    const gradientX = data[index + 4] - data[index - 4];
+                    const gradientY = data[index + width * 4] - data[index - width * 4];
                     const gradient = Math.sqrt(gradientX ** 2 + gradientY ** 2);
                     edges[index] = gradient > threshold ? 255 : 0;
                 }
             }
+            return edges;
+        }
 
-            // Detecção de linhas usando Hough Transform simplificado
+        function detectLines(edges) {
+            const { width, height } = canvas;
+            const lines = [];
+            const threshold = 50;
+            const minLineLength = 50;
+            const maxLineGap = 5;
+
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
                     const index = (y * width + x) * 4;
@@ -89,7 +97,7 @@
                         while (x + lineLength < width && edges[(y * width + (x + lineLength)) * 4] === 255) {
                             lineLength++;
                         }
-                        if (lineLength > 20) {
+                        if (lineLength >= minLineLength) {
                             lines.push({ x, y, length: lineLength });
                             x += lineLength;
                         }
@@ -103,7 +111,7 @@
             let curvedLineDetected = false;
 
             for (const line of lines) {
-                if (line.length < 50) { // Critério para linha não reta (ajuste se necessário)
+                if (line.length < 100) { // Ajustar limite para identificar linhas tensionadas corretamente
                     curvedLineDetected = true;
                     break;
                 }
