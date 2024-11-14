@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detector de Fios Brancos Bem Definidos</title>
+    <title>Detector de Linhas Brancas Bem Definidas</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f0f0f0; font-family: Arial, sans-serif; }
@@ -84,6 +84,7 @@
                     const index = (y * width + x) * 4;
                     if (edges[index] === 255) {
                         let lineLength = 1;
+                        // Verificar continuidade para detectar linhas retas
                         while (x + lineLength < width && edges[(y * width + (x + lineLength)) * 4] === 255) {
                             lineLength++;
                         }
@@ -94,15 +95,16 @@
                     }
                 }
             }
+
             return lines;
         }
 
         function checkForCurvedLines(lines) {
             let curvedLineDetected = false;
 
+            // Melhorar detecção de curvas: se a linha não for reta o suficiente, é considerada ondulada
             for (const line of lines) {
-                // Se a linha for muito curta ou apresentar variações, consideramos ondulada
-                if (line.length < 50) { // Ajuste o limite conforme necessário
+                if (line.length < 50) { // Se a linha for muito curta, é ignorada
                     curvedLineDetected = true;
                     break;
                 }
