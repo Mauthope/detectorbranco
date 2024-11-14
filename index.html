@@ -1,107 +1,117 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detecção de Tensionamento do Fio</title>
+    <title>Detector de Fio Tensionado</title>
     <style>
-        body {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            font-family: Arial, sans-serif;
-        }
-        video, canvas {
-            max-width: 90%;
-            margin: 10px;
-            border: 1px solid #ddd;
-        }
-        #status {
-            font-size: 24px;
-            font-weight: bold;
-            margin-top: 20px;
-        }
-        .ok {
-            color: green;
-        }
-        .stop {
-            color: red;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f0f0f0; font-family: Arial, sans-serif; }
+        canvas { width: 80vw; height: auto; border: 2px solid #0077b6; border-radius: 8px; margin-bottom: 10px; }
+        #info { margin-top: 10px; text-align: center; }
+        #status { font-weight: bold; margin-top: 20px; }
     </style>
 </head>
 <body>
-    <h2>Detecção de Tensionamento do Fio</h2>
-    <video id="video" autoplay playsinline></video>
     <canvas id="canvas"></canvas>
-    <div id="status" class="stop">Parar</div>
-    
+    <div id="info">
+        <p>Fio Detectado: <span id="status">---</span></p>
+    </div>
+
     <script>
-        const video = document.getElementById('video');
+        const video = document.createElement('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        const statusElement = document.getElementById('status');
+        const statusElem = document.getElementById('status');
 
-        // Função para iniciar a câmera traseira
-        async function startCamera() {
+        let width, height;
+        let detectionRunning = true;
+
+        async function initCamera() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: { exact: 'environment' }
-                    }
-                });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: 640, height: 480 } });
                 video.srcObject = stream;
+                await video.play();
+                width = video.videoWidth;
+                height = video.videoHeight;
+                canvas.width = 320;
+                canvas.height = 240;
+                startDetection();
             } catch (err) {
-                console.error("Erro ao acessar a câmera traseira:", err);
+                console.error("Erro ao acessar a câmera:", err);
             }
         }
 
-        // Função para detectar bordas e o estado do fio
-        function detectEdgesAndTension() {
-            if (video.videoWidth === 0 || video.videoHeight === 0) return;
-
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+        function processFrame() {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
+            let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            let data = imageData.data;
 
-            // Conversão para escala de cinza
+            // Converter para tons de cinza
             for (let i = 0; i < data.length; i += 4) {
-                const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                data[i] = data[i + 1] = data[i + 2] = avg;
+                const gray = 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
+                data[i] = data[i + 1] = data[i + 2] = gray;
+                data[i + 3] = 255;
             }
             ctx.putImageData(imageData, 0, 0);
 
-            // Detecção de bordas básica
-            let edgeCount = 0;
-            for (let i = 0; i < data.length - 4; i += 4) {
-                const diff = Math.abs(data[i] - data[i + 4]);
-                if (diff > 20) edgeCount++;
+            // Detecção de bordas e linhas
+            detectWire(imageData);
+        }
+
+        function detectWire(imageData) {
+            const data = imageData.data;
+            const edges = [];
+
+            // Detectar bordas simples (Canny-like)
+            for (let y = 1; y < canvas.height - 1; y++) {
+                for (let x = 1; x < canvas.width - 1; x++) {
+                    const index = (y * canvas.width + x) * 4;
+                    const pixel = data[index];
+                    if (pixel > 200) {
+                        edges.push({ x, y });
+                    }
+                }
             }
 
-            // Determina o estado do fio com base no número de bordas detectadas
-            if (edgeCount > 1500) {
-                // Fio solto (mais curvado)
-                statusElement.textContent = "Parar";
-                statusElement.className = "stop";
-            } else {
-                // Fio tensionado (mais reto)
-                statusElement.textContent = "OK";
-                statusElement.className = "ok";
+            // Analisar linhas
+            const lines = detectLines(edges);
+            if (lines.length > 0) {
+                const tensioned = lines.length >= 3; // Considerar fio tensionado se várias linhas retas forem encontradas
+                statusElem.textContent = tensioned ? "Tensionado" : "Curvo";
+                if (!tensioned) stopDetection();
             }
         }
 
-        // Loop de processamento em tempo real
-        function processVideo() {
-            detectEdgesAndTension();
-            requestAnimationFrame(processVideo);
+        function detectLines(edges) {
+            // Usar uma versão simplificada da Transformada de Hough para detectar linhas retas
+            const lines = [];
+            for (let i = 0; i < edges.length; i++) {
+                const { x, y } = edges[i];
+                if (Math.abs(y - edges[0].y) < 5) {
+                    lines.push({ x, y });
+                }
+            }
+            return lines;
         }
 
-        // Iniciar a câmera e o processamento de vídeo
-        startCamera().then(() => {
-            video.addEventListener('playing', processVideo);
-        });
+        function stopDetection() {
+            detectionRunning = false;
+            statusElem.textContent = "Parado - Fio Curvo Detectado";
+            video.pause();
+        }
+
+        function startDetection() {
+            function detectionLoop() {
+                if (detectionRunning) {
+                    processFrame();
+                    requestAnimationFrame(detectionLoop);
+                }
+            }
+            detectionLoop();
+        }
+
+        initCamera();
     </script>
 </body>
 </html>
