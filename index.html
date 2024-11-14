@@ -41,15 +41,21 @@
         const ctx = canvas.getContext('2d');
         const statusElement = document.getElementById('status');
 
+        // Função para iniciar a câmera traseira
         async function startCamera() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: { exact: 'environment' }
+                    }
+                });
                 video.srcObject = stream;
             } catch (err) {
-                console.error("Erro ao acessar a câmera:", err);
+                console.error("Erro ao acessar a câmera traseira:", err);
             }
         }
 
+        // Função para detectar bordas e o estado do fio
         function detectEdgesAndTension() {
             if (video.videoWidth === 0 || video.videoHeight === 0) return;
 
@@ -67,7 +73,7 @@
             }
             ctx.putImageData(imageData, 0, 0);
 
-            // Detecção simples de borda (somatório de diferenças de pixels)
+            // Detecção de bordas básica
             let edgeCount = 0;
             for (let i = 0; i < data.length - 4; i += 4) {
                 const diff = Math.abs(data[i] - data[i + 4]);
@@ -86,11 +92,13 @@
             }
         }
 
+        // Loop de processamento em tempo real
         function processVideo() {
             detectEdgesAndTension();
             requestAnimationFrame(processVideo);
         }
 
+        // Iniciar a câmera e o processamento de vídeo
         startCamera().then(() => {
             video.addEventListener('playing', processVideo);
         });
