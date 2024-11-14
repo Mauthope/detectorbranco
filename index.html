@@ -4,175 +4,147 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Detecção de Objetos Brancos</title>
-    <link rel="stylesheet" href="style.css">
-</head>
     <style>
-        * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    background-color: #f5f5f5;
-    font-family: Arial, sans-serif;
-}
-
-#container {
-    position: relative;
-    text-align: center;
-}
-
-#camera {
-    width: 100vw;
-    height: auto;
-}
-
-canvas {
-    display: none;
-}
-
-#info {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background-color: rgba(0, 0, 0, 0.6);
-    color: #fff;
-    padding: 10px;
-    border-radius: 8px;
-}
-
-#boxes {
-    position: absolute;
-    bottom: 10%;
-    width: 100%;
-    text-align: center;
-}
-.dynamic-box {
-    display: inline-block;
-    background-color: #00b4d8;
-    margin: 5px;
-    border-radius: 8px;
-}
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f0f0f0; font-family: Arial, sans-serif; }
+        video { display: block; width: 90vw; height: auto; }
+        canvas { display: none; }
+        #info { margin-top: 10px; text-align: center; }
+        #boxes { margin-top: 20px; }
+        .dynamic-box { display: inline-block; background-color: #0077b6; margin: 5px; border-radius: 8px; width: 40px; height: 40px; }
     </style>
+</head>
 <body>
-    <div id="container">
-        <video id="camera" autoplay playsinline></video>
-        <canvas id="canvas"></canvas>
-        <div id="info">
-            <p>Percentual de Branco: <span id="percent-branco">0%</span></p>
-            <p>Objetos Brancos Detectados: <span id="contador-caixas">0</span></p>
-        </div>
-        <div id="boxes"></div>
+    <video id="camera" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+    <div id="info">
+        <p>Percentual de Branco: <span id="percent-branco">0%</span></p>
+        <p>Objetos Brancos Detectados: <span id="contador-caixas">0</span></p>
     </div>
-    <script src="script.js"></script>
+    <div id="boxes"></div>
+
     <script>
         const video = document.getElementById('camera');
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-const percentBrancoElem = document.getElementById('percent-branco');
-const contadorCaixasElem = document.getElementById('contador-caixas');
-const boxesContainer = document.getElementById('boxes');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const percentBrancoElem = document.getElementById('percent-branco');
+        const contadorCaixasElem = document.getElementById('contador-caixas');
+        const boxesContainer = document.getElementById('boxes');
 
-let width, height;
+        let width, height;
 
-async function initCamera() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment' }
-        });
-        video.srcObject = stream;
-        video.onloadedmetadata = () => {
-            width = video.videoWidth;
-            height = video.videoHeight;
-            canvas.width = width;
-            canvas.height = height;
-        };
-    } catch (err) {
-        console.error("Erro ao acessar a câmera:", err);
-    }
-}
-
-function processFrame() {
-    ctx.drawImage(video, 0, 0, width, height);
-    
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const data = imageData.data;
-    let whitePixels = 0;
-
-    // Converter para escala HSV para uma melhor distinção
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-
-        // Converter RGB para HSV
-        const { h, s, v } = rgbToHsv(r, g, b);
-
-        // Considerar branco apenas se a saturação for baixa e o brilho for alto
-        const isWhite = (s < 0.2 && v > 0.8);
-
-        if (isWhite) {
-            data[i] = data[i + 1] = data[i + 2] = 255;
-            whitePixels++;
-        } else {
-            data[i] = data[i + 1] = data[i + 2] = 0;
+        // Função para iniciar a câmera
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    width = video.videoWidth;
+                    height = video.videoHeight;
+                    canvas.width = width;
+                    canvas.height = height;
+                };
+            } catch (err) {
+                console.error("Erro ao acessar a câmera:", err);
+            }
         }
-    }
 
-    ctx.putImageData(imageData, 0, 0);
-    const contours = detectContours(ctx);
-    const numContours = contours.length;
+        // Função para converter RGB para escala de cinza
+        function toGrayscale(r, g, b) {
+            return 0.3 * r + 0.59 * g + 0.11 * b;
+        }
 
-    updateBoxes(numContours, whitePixels);
-}
+        // Função para processar o quadro do vídeo
+        function processFrame() {
+            ctx.drawImage(video, 0, 0, width, height);
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const data = imageData.data;
+            let whitePixels = 0;
 
-function rgbToHsv(r, g, b) {
-    r /= 255; g /= 255; b /= 255;
-    const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    const delta = max - min;
-    let h, s, v = max;
+            // Detectar áreas brancas com base na escala de cinza
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
 
-    s = max === 0 ? 0 : delta / max;
-    if (max === min) {
-        h = 0;
-    } else {
-        if (max === r) h = (g - b) / delta + (g < b ? 6 : 0);
-        else if (max === g) h = (b - r) / delta + 2;
-        else h = (r - g) / delta + 4;
-        h /= 6;
-    }
-    return { h, s, v };
-}
+                // Converter para escala de cinza
+                const grayscale = toGrayscale(r, g, b);
 
-function updateBoxes(contoursCount, whitePixels) {
-    const percentBranco = (whitePixels / (width * height)) * 100;
-    percentBrancoElem.textContent = `${percentBranco.toFixed(2)}%`;
+                // Verificar se é um pixel branco (ajustar o limite conforme necessário)
+                if (grayscale > 200 && r > 200 && g > 200 && b > 200) {
+                    data[i] = 255;
+                    data[i + 1] = 255;
+                    data[i + 2] = 255;
+                    whitePixels++;
+                } else {
+                    data[i] = 0;
+                    data[i + 1] = 0;
+                    data[i + 2] = 0;
+                }
+            }
 
-    contadorCaixasElem.textContent = contoursCount;
-    boxesContainer.innerHTML = '';
+            ctx.putImageData(imageData, 0, 0);
 
-    for (let i = 0; i < contoursCount; i++) {
-        const box = document.createElement('div');
-        box.className = 'dynamic-box';
-        box.style.width = `${50}px`;
-        box.style.height = `${50}px`;
-        boxesContainer.appendChild(box);
-    }
-}
+            // Calcular o percentual de branco
+            const totalPixels = width * height;
+            const percentBranco = (whitePixels / totalPixels) * 100;
+            percentBrancoElem.textContent = `${percentBranco.toFixed(2)}%`;
 
-function startDetection() {
-    setInterval(processFrame, 100);
-}
+            // Detectar contornos e contar objetos brancos
+            const objectsCount = countWhiteObjects();
+            contadorCaixasElem.textContent = objectsCount;
+            updateBoxes(objectsCount);
+        }
 
-initCamera();
-video.addEventListener('play', startDetection);
+        // Função para contar objetos brancos detectados
+        function countWhiteObjects() {
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const data = imageData.data;
+            let objects = 0;
+            let detected = new Set();
 
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const index = (y * width + x) * 4;
+                    if (data[index] === 255 && !detected.has(index)) {
+                        floodFill(x, y, detected);
+                        objects++;
+                    }
+                }
+            }
+            return objects;
+        }
+
+        // Algoritmo de Flood Fill para detectar contornos
+        function floodFill(x, y, detected) {
+            const stack = [[x, y]];
+            while (stack.length) {
+                const [curX, curY] = stack.pop();
+                const index = (curY * width + curX) * 4;
+                if (curX < 0 || curY < 0 || curX >= width || curY >= height || detected.has(index)) continue;
+                if (ctx.getImageData(curX, curY, 1, 1).data[0] !== 255) continue;
+
+                detected.add(index);
+                stack.push([curX + 1, curY], [curX - 1, curY], [curX, curY + 1], [curX, curY - 1]);
+            }
+        }
+
+        // Atualizar caixas na tela
+        function updateBoxes(count) {
+            boxesContainer.innerHTML = '';
+            for (let i = 0; i < count; i++) {
+                const box = document.createElement('div');
+                box.className = 'dynamic-box';
+                boxesContainer.appendChild(box);
+            }
+        }
+
+        function startDetection() {
+            setInterval(processFrame, 200);
+        }
+
+        initCamera();
+        video.addEventListener('play', startDetection);
     </script>
 </body>
 </html>
