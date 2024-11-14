@@ -3,19 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contador de Objetos Brancos</title>
+    <title>Detector de Objetos Brancos</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f0f0f0; font-family: Arial, sans-serif; }
-        video { width: 80vw; height: auto; border: 2px solid #0077b6; border-radius: 8px; margin-bottom: 10px; }
-        canvas { display: none; }
+        video { display: none; }
+        canvas { width: 80vw; height: auto; border: 2px solid #0077b6; border-radius: 8px; margin-bottom: 10px; }
         #info { margin-top: 10px; text-align: center; }
         #boxes { margin-top: 20px; display: flex; flex-wrap: wrap; justify-content: center; }
         .dynamic-box { background-color: #0077b6; margin: 5px; border-radius: 8px; width: 50px; height: 50px; }
     </style>
 </head>
 <body>
-    <video id="camera" autoplay playsinline></video>
     <canvas id="canvas"></canvas>
     <div id="info">
         <p>Objetos Brancos Detectados: <span id="contador-caixas">0</span></p>
@@ -23,7 +22,7 @@
     <div id="boxes"></div>
 
     <script>
-        const video = document.getElementById('camera');
+        const video = document.createElement('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const contadorCaixasElem = document.getElementById('contador-caixas');
@@ -36,12 +35,12 @@
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                 video.srcObject = stream;
-                video.onloadedmetadata = () => {
-                    width = video.videoWidth;
-                    height = video.videoHeight;
-                    canvas.width = width;
-                    canvas.height = height;
-                };
+                await video.play();
+                width = video.videoWidth;
+                height = video.videoHeight;
+                canvas.width = width;
+                canvas.height = height;
+                startDetection();
             } catch (err) {
                 console.error("Erro ao acessar a câmera:", err);
             }
@@ -53,13 +52,11 @@
             let imageData = ctx.getImageData(0, 0, width, height);
             let data = imageData.data;
 
-            // Aplicar saturação e converter para escala de cinza
+            // Converter para tons de cinza e aplicar binarização
             for (let i = 0; i < data.length; i += 4) {
-                // Converter para tons de cinza (método luminosidade)
-                const gray = 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
-                
-                // Aumentar contraste e saturação para realçar branco
-                data[i] = data[i + 1] = data[i + 2] = gray > 200 ? 255 : 0; // Binário: 0 (preto) ou 255 (branco)
+                const gray = 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2]; // Grayscale
+                data[i] = data[i + 1] = data[i + 2] = gray > 180 ? 255 : 0; // Limiar para binarização
+                data[i + 3] = 255; // Opacidade
             }
 
             ctx.putImageData(imageData, 0, 0);
@@ -79,13 +76,13 @@
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
                     const index = (y * width + x) * 4;
-                    
+
                     // Se o pixel é branco e ainda não foi detectado
                     if (data[index] === 255 && !detected.has(index)) {
                         const size = floodFill(x, y, detected);
-                        
+
                         // Contar apenas se o objeto for grande o suficiente
-                        if (size > 200) { // Ajuste o valor conforme necessário
+                        if (size > 200) { // Ajuste conforme necessário
                             objects++;
                         }
                     }
@@ -125,12 +122,13 @@
             }
         }
 
+        // Função para iniciar a detecção em intervalos
         function startDetection() {
             setInterval(processFrame, 300);
         }
 
+        // Iniciar a câmera
         initCamera();
-        video.addEventListener('play', startDetection);
     </script>
 </body>
 </html>
