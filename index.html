@@ -3,29 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detector de Fio Tensionado</title>
+    <title>Detector de Fios Brancos</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f0f0f0; font-family: Arial, sans-serif; }
         canvas { width: 80vw; height: auto; border: 2px solid #0077b6; border-radius: 8px; margin-bottom: 10px; }
         #info { margin-top: 10px; text-align: center; }
-        #status { font-weight: bold; margin-top: 20px; }
+        #alert { margin-top: 20px; color: red; font-weight: bold; font-size: 24px; display: none; }
+        .slider-container { margin-top: 10px; text-align: center; }
+        .slider { width: 300px; }
     </style>
 </head>
 <body>
     <canvas id="canvas"></canvas>
     <div id="info">
-        <p>Fio Detectado: <span id="status">---</span></p>
+        <p>Linhas Detectadas: <span id="contador-linhas">0</span></p>
     </div>
+    <div id="alert">PARE: Linha ondulada detectada!</div>
 
     <script>
         const video = document.createElement('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        const statusElem = document.getElementById('status');
+        const contadorLinhasElem = document.getElementById('contador-linhas');
+        const alertElem = document.getElementById('alert');
 
         let width, height;
-        let detectionRunning = true;
 
         async function initCamera() {
             try {
@@ -47,66 +50,76 @@
             let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             let data = imageData.data;
 
-            // Converter para tons de cinza
+            // Converter a imagem para preto e branco
             for (let i = 0; i < data.length; i += 4) {
                 const gray = 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
-                data[i] = data[i + 1] = data[i + 2] = gray;
+                data[i] = data[i + 1] = data[i + 2] = gray > 180 ? 255 : 0;
                 data[i + 3] = 255;
             }
             ctx.putImageData(imageData, 0, 0);
 
-            // Detecção de bordas e linhas
-            detectWire(imageData);
+            const lines = detectLines(imageData);
+            contadorLinhasElem.textContent = lines.length;
+            checkForCurvedLines(lines);
         }
 
-        function detectWire(imageData) {
-            const data = imageData.data;
-            const edges = [];
+        function detectLines(imageData) {
+            const edges = new Uint8ClampedArray(imageData.data.length);
+            const { width, height } = imageData;
+            const threshold = 50;
+            const lines = [];
 
-            // Detectar bordas simples (Canny-like)
-            for (let y = 1; y < canvas.height - 1; y++) {
-                for (let x = 1; x < canvas.width - 1; x++) {
-                    const index = (y * canvas.width + x) * 4;
-                    const pixel = data[index];
-                    if (pixel > 200) {
-                        edges.push({ x, y });
-                    }
+            // Canny Edge Detection simplificado (detecção de bordas)
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    const index = (y * width + x) * 4;
+                    const gradientX = imageData.data[index + 4] - imageData.data[index - 4];
+                    const gradientY = imageData.data[index + width * 4] - imageData.data[index - width * 4];
+                    const gradient = Math.sqrt(gradientX ** 2 + gradientY ** 2);
+                    edges[index] = gradient > threshold ? 255 : 0;
                 }
             }
 
-            // Analisar linhas
-            const lines = detectLines(edges);
-            if (lines.length > 0) {
-                const tensioned = lines.length >= 3; // Considerar fio tensionado se várias linhas retas forem encontradas
-                statusElem.textContent = tensioned ? "Tensionado" : "Curvo";
-                if (!tensioned) stopDetection();
-            }
-        }
-
-        function detectLines(edges) {
-            // Usar uma versão simplificada da Transformada de Hough para detectar linhas retas
-            const lines = [];
-            for (let i = 0; i < edges.length; i++) {
-                const { x, y } = edges[i];
-                if (Math.abs(y - edges[0].y) < 5) {
-                    lines.push({ x, y });
+            // Detecção de linhas usando Hough Transform simplificado
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const index = (y * width + x) * 4;
+                    if (edges[index] === 255) {
+                        let lineLength = 1;
+                        while (x + lineLength < width && edges[(y * width + (x + lineLength)) * 4] === 255) {
+                            lineLength++;
+                        }
+                        if (lineLength > 20) {
+                            lines.push({ x, y, length: lineLength });
+                            x += lineLength;
+                        }
+                    }
                 }
             }
             return lines;
         }
 
-        function stopDetection() {
-            detectionRunning = false;
-            statusElem.textContent = "Parado - Fio Curvo Detectado";
-            video.pause();
+        function checkForCurvedLines(lines) {
+            let curvedLineDetected = false;
+
+            for (const line of lines) {
+                if (line.length < 50) { // Critério para linha não reta (ajuste se necessário)
+                    curvedLineDetected = true;
+                    break;
+                }
+            }
+
+            if (curvedLineDetected) {
+                alertElem.style.display = 'block';
+            } else {
+                alertElem.style.display = 'none';
+            }
         }
 
         function startDetection() {
             function detectionLoop() {
-                if (detectionRunning) {
-                    processFrame();
-                    requestAnimationFrame(detectionLoop);
-                }
+                processFrame();
+                requestAnimationFrame(detectionLoop);
             }
             detectionLoop();
         }
