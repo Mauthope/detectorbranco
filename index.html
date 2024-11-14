@@ -8,7 +8,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f0f0f0; font-family: Arial, sans-serif; }
         video { display: none; }
-        canvas { width: 90vw; height: auto; background-color: #000; }
+        canvas { border: 2px solid #0077b6; margin-top: 20px; }
         #info { margin-top: 10px; text-align: center; }
         #boxes { margin-top: 20px; }
         .dynamic-box { display: inline-block; background-color: #0077b6; margin: 5px; border-radius: 8px; width: 40px; height: 40px; }
@@ -50,24 +50,24 @@
             }
         }
 
-        // Função para converter a imagem para preto e branco e detectar áreas brancas
+        // Função para processar a imagem e detectar a cor branca
         function processFrame() {
             ctx.drawImage(video, 0, 0, width, height);
             const imageData = ctx.getImageData(0, 0, width, height);
             const data = imageData.data;
             let whitePixels = 0;
 
-            // Processar a imagem para aplicar escala de cinza e detectar branco
+            // Converter a imagem para preto e branco
             for (let i = 0; i < data.length; i += 4) {
                 const r = data[i];
                 const g = data[i + 1];
                 const b = data[i + 2];
 
-                // Converter para escala de cinza
-                const grayscale = 0.3 * r + 0.59 * g + 0.11 * b;
+                // Calcular a intensidade média (escala de cinza)
+                const gray = 0.3 * r + 0.59 * g + 0.11 * b;
 
-                // Verificar se o pixel é suficientemente branco
-                if (grayscale > 200 && r > 200 && g > 200 && b > 200) {
+                // Verificar se é suficientemente branco
+                if (gray > 220 && r > 220 && g > 220 && b > 220) {
                     // Tornar o pixel branco
                     data[i] = 255;
                     data[i + 1] = 255;
@@ -84,13 +84,13 @@
             // Atualizar o canvas com a imagem processada
             ctx.putImageData(imageData, 0, 0);
 
-            // Calcular o percentual de branco
+            // Calcular o percentual de pixels brancos
             const totalPixels = width * height;
             const percentBranco = (whitePixels / totalPixels) * 100;
             percentBrancoElem.textContent = `${percentBranco.toFixed(2)}%`;
 
-            // Detectar objetos brancos (contando áreas grandes de branco)
-            const objectsCount = whitePixels > 500 ? 1 : 0;
+            // Detectar objetos brancos baseados em áreas de pixels brancos detectados
+            const objectsCount = Math.floor(whitePixels / 5000); // Ajuste a sensibilidade
             contadorCaixasElem.textContent = objectsCount;
             updateBoxes(objectsCount);
         }
@@ -107,7 +107,7 @@
 
         // Função para iniciar a detecção
         function startDetection() {
-            setInterval(processFrame, 200);
+            setInterval(processFrame, 100);
         }
 
         initCamera();
