@@ -11,12 +11,23 @@
         #info { margin-top: 10px; text-align: center; }
         #boxes { margin-top: 20px; display: flex; flex-wrap: wrap; justify-content: center; }
         .dynamic-box { background-color: #0077b6; margin: 5px; border-radius: 8px; width: 50px; height: 50px; }
+        .slider-container { margin-top: 10px; text-align: center; }
+        .slider-label { margin-bottom: 5px; }
+        .slider { width: 300px; }
     </style>
 </head>
 <body>
     <canvas id="canvas"></canvas>
     <div id="info">
         <p>Objetos Brancos Detectados: <span id="contador-caixas">0</span></p>
+    </div>
+    <div class="slider-container">
+        <div class="slider-label">Contraste: <span id="contrast-value">1</span></div>
+        <input type="range" id="contrast-slider" class="slider" min="0.5" max="3" step="0.1" value="1">
+    </div>
+    <div class="slider-container">
+        <div class="slider-label">Saturação: <span id="saturation-value">1</span></div>
+        <input type="range" id="saturation-slider" class="slider" min="0" max="3" step="0.1" value="1">
     </div>
     <div id="boxes"></div>
 
@@ -27,9 +38,13 @@
         const contadorCaixasElem = document.getElementById('contador-caixas');
         const boxesContainer = document.getElementById('boxes');
 
+        const contrastSlider = document.getElementById('contrast-slider');
+        const saturationSlider = document.getElementById('saturation-slider');
+        const contrastValueLabel = document.getElementById('contrast-value');
+        const saturationValueLabel = document.getElementById('saturation-value');
+
         let width, height;
 
-        // Função para iniciar a câmera
         async function initCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: 640, height: 480 } });
@@ -37,7 +52,7 @@
                 await video.play();
                 width = video.videoWidth;
                 height = video.videoHeight;
-                canvas.width = 320; // Reduzir a resolução do canvas para acelerar o processamento
+                canvas.width = 320;
                 canvas.height = 240;
                 startDetection();
             } catch (err) {
@@ -45,27 +60,50 @@
             }
         }
 
-        // Função para processar o quadro do vídeo e detectar objetos brancos
         function processFrame() {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             let data = imageData.data;
 
+            // Obter valores dos sliders
+            const contrast = parseFloat(contrastSlider.value);
+            const saturation = parseFloat(saturationSlider.value);
+
+            // Aplicar contraste e saturação
+            adjustContrast(data, contrast);
+            adjustSaturation(data, saturation);
+
             // Converter para tons de cinza e aplicar binarização
             for (let i = 0; i < data.length; i += 4) {
                 const gray = 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
-                data[i] = data[i + 1] = data[i + 2] = gray > 180 ? 255 : 0; // Limiar para binarização
+                data[i] = data[i + 1] = data[i + 2] = gray > 180 ? 255 : 0;
                 data[i + 3] = 255;
             }
             ctx.putImageData(imageData, 0, 0);
 
-            // Detectar contornos e contar objetos
             const objectsCount = detectContours(imageData);
             contadorCaixasElem.textContent = objectsCount;
             updateBoxes(objectsCount);
         }
 
-        // Função para detectar contornos usando um algoritmo otimizado
+        function adjustContrast(data, contrast) {
+            const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = factor * (data[i] - 128) + 128;
+                data[i + 1] = factor * (data[i + 1] - 128) + 128;
+                data[i + 2] = factor * (data[i + 2] - 128) + 128;
+            }
+        }
+
+        function adjustSaturation(data, saturation) {
+            for (let i = 0; i < data.length; i += 4) {
+                const gray = 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
+                data[i] = gray + (data[i] - gray) * saturation;
+                data[i + 1] = gray + (data[i + 1] - gray) * saturation;
+                data[i + 2] = gray + (data[i + 2] - gray) * saturation;
+            }
+        }
+
         function detectContours(imageData) {
             const data = imageData.data;
             let detected = new Set();
@@ -74,18 +112,15 @@
             for (let y = 0; y < canvas.height; y++) {
                 for (let x = 0; x < canvas.width; x++) {
                     const index = (y * canvas.width + x) * 4;
-
-                    // Se o pixel é branco e ainda não foi detectado
                     if (data[index] === 255 && !detected.has(index)) {
                         const size = floodFill(x, y, detected);
-                        if (size > 100) objects++; // Ajuste o tamanho mínimo para melhor precisão
+                        if (size > 100) objects++;
                     }
                 }
             }
             return objects;
         }
 
-        // Função de Flood Fill otimizada
         function floodFill(x, y, detected) {
             const stack = [[x, y]];
             let size = 0;
@@ -106,7 +141,6 @@
             return size;
         }
 
-        // Atualizar caixas na tela
         function updateBoxes(count) {
             boxesContainer.innerHTML = '';
             for (let i = 0; i < count; i++) {
@@ -116,7 +150,6 @@
             }
         }
 
-        // Função para iniciar a detecção
         function startDetection() {
             function detectionLoop() {
                 processFrame();
@@ -125,7 +158,9 @@
             detectionLoop();
         }
 
-        // Iniciar a câmera
+        contrastSlider.addEventListener('input', () => contrastValueLabel.textContent = contrastSlider.value);
+        saturationSlider.addEventListener('input', () => saturationValueLabel.textContent = saturationSlider.value);
+
         initCamera();
     </script>
 </body>
