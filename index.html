@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detecção de Cor Branca</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+  <style>
+    * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background-color: #f5f5f5;
+    font-family: Arial, sans-serif;
+}
+
+#container {
+    position: relative;
+    text-align: center;
+}
+
+#camera {
+    width: 100vw;
+    height: auto;
+}
+
+canvas {
+    display: none;
+}
+
+#info {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    padding: 10px;
+    border-radius: 8px;
+}
+
+#boxes {
+    position: absolute;
+    bottom: 10%;
+    width: 100%;
+    text-align: center;
+}
+.dynamic-box {
+    display: inline-block;
+    background-color: #00b4d8;
+    margin: 5px;
+    border-radius: 8px;
+    transition: width 0.3s, height 0.3s;
+}
+
+  </style>
+<body>
+    <div id="container">
+        <video id="camera" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+        <div id="info">
+            <p>Percentual de Branco: <span id="percent-branco">0%</span></p>
+            <p>Caixas Ativas: <span id="contador-caixas">0</span></p>
+        </div>
+        <div id="boxes"></div>
+    </div>
+    <script src="script.js"></script>
+  <script>
+    const video = document.getElementById('camera');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const percentBrancoElem = document.getElementById('percent-branco');
+const contadorCaixasElem = document.getElementById('contador-caixas');
+const boxesContainer = document.getElementById('boxes');
+
+let width, height;
+
+async function initCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' }
+        });
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+            width = video.videoWidth;
+            height = video.videoHeight;
+            canvas.width = width;
+            canvas.height = height;
+        };
+    } catch (err) {
+        console.error("Erro ao acessar a câmera:", err);
+    }
+}
+
+function processFrame() {
+    ctx.drawImage(video, 0, 0, width, height);
+    
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+    let whitePixels = 0;
+
+    // Aplicar filtro de preto e branco e aumentar o contraste
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        
+        // Converter para preto e branco com alto contraste
+        const brightness = (r + g + b) / 3;
+        const isWhite = brightness > 200 ? 255 : 0;
+        
+        data[i] = data[i + 1] = data[i + 2] = isWhite;
+
+        if (isWhite === 255) {
+            whitePixels++;
+        }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+
+    // Calcular percentual de branco
+    const totalPixels = width * height;
+    const percentBranco = (whitePixels / totalPixels) * 100;
+    percentBrancoElem.textContent = `${percentBranco.toFixed(2)}%`;
+
+    // Atualizar caixas
+    updateBoxes(percentBranco);
+}
+
+function updateBoxes(percentBranco) {
+    const boxCount = Math.round(percentBranco / 10);
+    boxesContainer.innerHTML = '';
+
+    for (let i = 0; i < boxCount; i++) {
+        const box = document.createElement('div');
+        box.className = 'dynamic-box';
+        box.style.width = `${20 + percentBranco}px`;
+        box.style.height = `${20 + percentBranco}px`;
+        boxesContainer.appendChild(box);
+    }
+
+    contadorCaixasElem.textContent = boxCount;
+}
+
+function startDetection() {
+    setInterval(processFrame, 100);
+}
+
+// Inicializar aplicação
+initCamera();
+video.addEventListener('play', startDetection);
+
+  </script>
+</body>
+</html>
