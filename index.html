@@ -1,145 +1,136 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detector de Linhas Brancas Contínuas</title>
+    <title>Detecção de Cor Branca</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f0f0f0; font-family: Arial, sans-serif; }
-        canvas { width: 80vw; height: auto; border: 2px solid #0077b6; border-radius: 8px; margin-bottom: 10px; }
-        #info { margin-top: 10px; text-align: center; }
-        #alert { margin-top: 20px; color: red; font-weight: bold; font-size: 24px; display: none; }
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #fff;
+            height: 100vh;
+        }
+        video {
+            width: 100%;
+            height: auto;
+            max-height: 70vh;
+        }
+        #center-mark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100px;
+            height: 100px;
+            border: 2px solid red;
+            border-radius: 50%;
+        }
+        #controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+        #timer {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
-    <canvas id="canvas"></canvas>
-    <div id="info">
-        <p>Linhas Detectadas: <span id="contador-linhas">0</span></p>
+    <video id="camera" autoplay></video>
+    <div id="center-mark"></div>
+    <div id="controls">
+        <div id="timer">Cronômetro: 0.00s</div>
     </div>
-    <div id="alert">PARE: Linha ondulada detectada!</div>
-
     <script>
-        const video = document.createElement('video');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const contadorLinhasElem = document.getElementById('contador-linhas');
-        const alertElem = document.getElementById('alert');
+        const video = document.getElementById('camera');
+        const timerDisplay = document.getElementById('timer');
+        const centerMark = document.getElementById('center-mark');
+        let stream = null;
+        let isWhiteDetected = false;
+        let startTime = null;
+        let interval = null;
 
-        let width, height;
-
-        async function initCamera() {
+        async function startCamera() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: 640, height: 480 } });
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment" },
+                });
                 video.srcObject = stream;
-                await video.play();
-                width = video.videoWidth;
-                height = video.videoHeight;
-                canvas.width = 320;
-                canvas.height = 240;
-                startDetection();
-            } catch (err) {
-                console.error("Erro ao acessar a câmera:", err);
+            } catch (error) {
+                alert("Erro ao acessar a câmera: " + error.message);
             }
         }
 
-        function processFrame() {
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            let data = imageData.data;
+        function detectWhiteColor() {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
 
-            // Converter a imagem para preto e branco (grayscale + binarização)
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const size = 50;
+
+            const imageData = context.getImageData(centerX - size / 2, centerY - size / 2, size, size);
+            const data = imageData.data;
+
+            let whitePixelCount = 0;
             for (let i = 0; i < data.length; i += 4) {
-                const gray = 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
-                data[i] = data[i + 1] = data[i + 2] = gray > 180 ? 255 : 0; // Binarização para focar no branco
-                data[i + 3] = 255;
-            }
-            ctx.putImageData(imageData, 0, 0);
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
 
-            const lines = detectLines(imageData);
-            contadorLinhasElem.textContent = lines.length;
-            checkForCurvedLines(lines);
-        }
-
-        function detectLines(imageData) {
-            const edges = new Uint8ClampedArray(imageData.data.length);
-            const { width, height } = imageData;
-            const threshold = 50;
-            const lines = [];
-
-            // Aplicando filtro de borda (Canny)
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
-                    const index = (y * width + x) * 4;
-                    const gradientX = imageData.data[index + 4] - imageData.data[index - 4];
-                    const gradientY = imageData.data[index + width * 4] - imageData.data[index - width * 4];
-                    const gradient = Math.sqrt(gradientX ** 2 + gradientY ** 2);
-                    edges[index] = gradient > threshold ? 255 : 0;
+                // Verifica se o pixel é próximo de branco
+                if (r > 200 && g > 200 && b > 200) {
+                    whitePixelCount++;
                 }
             }
 
-            // Detecção de linhas horizontais ou verticais contínuas
-            for (let y = 0; y < height; y++) {
-                let whitePixelsHorizontal = 0;
-                let whitePixelsVertical = 0;
+            const whiteRatio = whitePixelCount / (size * size);
 
-                // Detecção de linha horizontal
-                for (let x = 0; x < width; x++) {
-                    const index = (y * width + x) * 4;
-                    if (edges[index] === 255) {
-                        whitePixelsHorizontal++;
-                    }
+            if (whiteRatio > 0.9) {
+                if (!isWhiteDetected) {
+                    isWhiteDetected = true;
+                    toggleTimer();
                 }
-
-                // Detecção de linha vertical
-                for (let x = 0; x < width; x++) {
-                    const index = (x * width + y) * 4;
-                    if (edges[index] === 255) {
-                        whitePixelsVertical++;
-                    }
-                }
-
-                // Se a linha horizontal tiver pixels brancos suficientes e contínuos
-                if (whitePixelsHorizontal > width * 0.8) {
-                    lines.push({ x: 0, y, direction: 'horizontal', length: whitePixelsHorizontal });
-                }
-                // Se a linha vertical tiver pixels brancos suficientes e contínuos
-                if (whitePixelsVertical > height * 0.8) {
-                    lines.push({ x: 0, y, direction: 'vertical', length: whitePixelsVertical });
-                }
-            }
-
-            return lines;
-        }
-
-        function checkForCurvedLines(lines) {
-            let curvedLineDetected = false;
-
-            // Se uma linha não for contínua ou for muito curta, será considerada ondulada
-            for (const line of lines) {
-                if (line.length < 0.8 * (line.direction === 'horizontal' ? width : height)) {
-                    curvedLineDetected = true;
-                    break;
-                }
-            }
-
-            // Exibe alerta caso linha ondulada seja detectada
-            if (curvedLineDetected) {
-                alertElem.style.display = 'block';
             } else {
-                alertElem.style.display = 'none';
+                if (isWhiteDetected) {
+                    isWhiteDetected = false;
+                    toggleTimer();
+                }
+            }
+
+            requestAnimationFrame(detectWhiteColor);
+        }
+
+        function toggleTimer() {
+            if (!startTime) {
+                // Inicia o cronômetro
+                startTime = Date.now();
+                interval = setInterval(() => {
+                    const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                    timerDisplay.textContent = `Cronômetro: ${elapsedTime}s`;
+                }, 100);
+            } else {
+                // Para o cronômetro
+                clearInterval(interval);
+                startTime = null;
+                timerDisplay.textContent = "Cronômetro: 0.00s";
             }
         }
 
-        function startDetection() {
-            function detectionLoop() {
-                processFrame();
-                requestAnimationFrame(detectionLoop);
-            }
-            detectionLoop();
-        }
-
-        initCamera();
+        video.addEventListener('loadeddata', detectWhiteColor);
+        startCamera();
     </script>
 </body>
 </html>
