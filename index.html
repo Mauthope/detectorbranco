@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detecção de Cor Branca</title>
+    <title>Detecção de Cor Branca - Movimento Lateral</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <style>
         body {
@@ -29,10 +29,9 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 100px;
-            height: 100px;
+            width: 200px;
+            height: 50px;
             border: 2px solid red;
-            border-radius: 50%;
         }
         #controls {
             margin-top: 10px;
@@ -58,7 +57,7 @@
         }
         #time-log tbody {
             display: block;
-            max-height: 100px; /* Limita a tabela a duas linhas */
+            max-height: 100px;
             overflow-y: auto;
         }
         #time-log thead, #time-log tbody tr {
@@ -134,9 +133,10 @@
 
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
-            const size = 50;
+            const width = 200; // Área horizontal maior
+            const height = 50; // Área vertical reduzida
 
-            const imageData = context.getImageData(centerX - size / 2, centerY - size / 2, size, size);
+            const imageData = context.getImageData(centerX - width / 2, centerY - height / 2, width, height);
             const data = imageData.data;
 
             let whitePixelCount = 0;
@@ -151,7 +151,7 @@
                 }
             }
 
-            const whiteRatio = whitePixelCount / (size * size);
+            const whiteRatio = whitePixelCount / (width * height);
 
             if (whiteRatio > 0.9) {
                 if (!isWhiteDetected && isClearDetected) {
