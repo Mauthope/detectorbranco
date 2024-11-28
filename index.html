@@ -150,7 +150,7 @@
                 // Inicia o cronômetro
                 startTime = Date.now();
                 interval = setInterval(() => {
-                    const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                    const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(0);
                     timerDisplay.textContent = `Cronômetro: ${elapsedTime}s`;
                 }, 100);
             } else {
