@@ -120,7 +120,7 @@
 
             if (previousFrame) {
                 const diff = compareFrames(previousFrame, currentFrame);
-                if (diff > 0.02) {  // Define a threshold for detecting significant movement
+                if (diff > 0.1) {  // Define a threshold for detecting significant movement
                     if (!isMoving) {
                         isMoving = true;
                         toggleTimer();
