@@ -177,25 +177,30 @@
             tableBody.appendChild(row);
         }
 
-  function downloadCSV() {
+ function downloadCSV() {
     let csvContent = "data:text/csv;charset=utf-8,#,Tempo Decorrido (s),Data e Hora\n";
-    const rows = tableBody.querySelectorAll('tr');
-    
-    // Itera sobre todas as linhas da tabela e prepara os dados para exportação
+    const rows = tableBody.querySelectorAll('tr'); // Seleciona todas as linhas do corpo da tabela
+
+    if (rows.length === 0) {
+        alert("Nenhum dado disponível para exportar.");
+        return; // Sai da função caso não haja dados
+    }
+
+    // Converte os dados de cada linha para o formato CSV
     rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        const rowData = Array.from(cells).map(cell => `"${cell.textContent.replace(/"/g, '""')}"`).join(",");
-        csvContent += rowData + "\n";
+        const cells = row.querySelectorAll('td'); // Seleciona todas as células da linha
+        const rowData = Array.from(cells).map(cell => cell.textContent).join(","); // Extrai o texto e une por vírgulas
+        csvContent += rowData + "\n"; // Adiciona a linha ao conteúdo CSV
     });
 
-    // Cria o link para download do CSV
+    // Cria um link para download do arquivo CSV
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
     link.setAttribute('download', 'log_pessoas.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    document.body.appendChild(link); // Adiciona o link ao DOM temporariamente
+    link.click(); // Simula o clique para download
+    document.body.removeChild(link); // Remove o link do DOM
 }
 
 
