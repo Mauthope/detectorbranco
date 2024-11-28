@@ -156,7 +156,7 @@
             } else {
                 // Para o cronômetro e salva na tabela
                 clearInterval(interval);
-                const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(0);
                 addLog(elapsedTime);
                 startTime = null;
                 timerDisplay.textContent = "Cronômetro: 0.00s";
