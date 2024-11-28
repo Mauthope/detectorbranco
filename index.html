@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detecção de Movimento</title>
+    <title>Detecção de Carros</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     <style>
         body {
             margin: 0;
@@ -23,6 +24,7 @@
             width: 100%;
             height: auto;
             max-height: 50vh;
+            border: 2px solid #333;
         }
         #timer {
             font-size: 1.5rem;
@@ -71,7 +73,7 @@
     </style>
 </head>
 <body>
-    <video id="camera" autoplay></video>
+    <video id="camera" autoplay muted></video>
     <div id="timer">Cronômetro: 0.00s</div>
     <button id="download">Download CSV</button>
     <table id="time-log">
@@ -92,11 +94,11 @@
         const tableBody = document.getElementById('time-log').querySelector('tbody');
         const downloadButton = document.getElementById('download');
         let stream = null;
-        let previousFrame = null;
-        let isMoving = false;
+        let isCarDetected = false;
         let startTime = null;
         let interval = null;
         let logCounter = 0;
+        let model = null;
 
         async function startCamera() {
             try {
@@ -109,47 +111,30 @@
             }
         }
 
-        function detectMovement() {
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const currentFrame = context.getImageData(0, 0, canvas.width, canvas.height);
-
-            if (previousFrame) {
-                const diff = compareFrames(previousFrame, currentFrame);
-                if (diff > 0.1) {  // Define a threshold for detecting significant movement
-                    if (!isMoving) {
-                        isMoving = true;
-                        toggleTimer();
-                    }
-                } else {
-                    if (isMoving) {
-                        isMoving = false;
-                    }
-                }
-            }
-
-            previousFrame = currentFrame;
-            requestAnimationFrame(detectMovement);
+        async function loadModel() {
+            model = await cocoSsd.load();
+            console.log("Modelo carregado com sucesso!");
+            detectCar();
         }
 
-        function compareFrames(frame1, frame2) {
-            let diff = 0;
-            for (let i = 0; i < frame1.data.length; i += 4) {
-                const r1 = frame1.data[i];
-                const g1 = frame1.data[i + 1];
-                const b1 = frame1.data[i + 2];
-                const r2 = frame2.data[i];
-                const g2 = frame2.data[i + 1];
-                const b2 = frame2.data[i + 2];
+        function detectCar() {
+            if (!model) return;
 
-                // Calculate color difference
-                diff += Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2);
-            }
-            return diff / (frame1.data.length / 4);  // Average color difference
+            model.detect(video).then(predictions => {
+                const carDetected = predictions.some(prediction => 
+                    prediction.class === "car" && prediction.score > 0.6
+                );
+
+                if (carDetected && !isCarDetected) {
+                    isCarDetected = true;
+                    toggleTimer();
+                } else if (!carDetected && isCarDetected) {
+                    isCarDetected = false;
+                    toggleTimer();
+                }
+
+                requestAnimationFrame(detectCar);
+            });
         }
 
         function toggleTimer() {
@@ -195,7 +180,7 @@
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement('a');
             link.setAttribute('href', encodedUri);
-            link.setAttribute('download', 'log_cronometro.csv');
+            link.setAttribute('download', 'log_carros.csv');
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -203,7 +188,10 @@
 
         downloadButton.addEventListener('click', downloadCSV);
 
-        video.addEventListener('loadeddata', detectMovement);
+        video.addEventListener('loadeddata', () => {
+            loadModel();
+        });
+
         startCamera();
     </script>
 </body>
