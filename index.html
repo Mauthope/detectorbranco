@@ -17,11 +17,12 @@
             background-color: #121212;
             color: #fff;
             height: 100vh;
+            overflow: hidden;
         }
         video {
             width: 100%;
             height: auto;
-            max-height: 70vh;
+            max-height: 50vh;
         }
         #center-mark {
             position: absolute;
@@ -34,12 +35,29 @@
             border-radius: 50%;
         }
         #controls {
-            margin-top: 20px;
+            margin-top: 10px;
             text-align: center;
         }
         #timer {
             font-size: 1.5rem;
             font-weight: bold;
+        }
+        table {
+            width: 90%;
+            margin: 20px auto;
+            border-collapse: collapse;
+            text-align: left;
+        }
+        table th, table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        table th {
+            background-color: #333;
+            color: #fff;
+        }
+        table tr:nth-child(even) {
+            background-color: #222;
         }
     </style>
 </head>
@@ -49,14 +67,26 @@
     <div id="controls">
         <div id="timer">Cronômetro: 0.00s</div>
     </div>
+    <table id="time-log">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Tempo Decorrido (s)</th>
+                <th>Data e Hora</th>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
     <script>
         const video = document.getElementById('camera');
         const timerDisplay = document.getElementById('timer');
-        const centerMark = document.getElementById('center-mark');
+        const tableBody = document.getElementById('time-log').querySelector('tbody');
         let stream = null;
         let isWhiteDetected = false;
         let startTime = null;
         let interval = null;
+        let logCounter = 0;
 
         async function startCamera() {
             try {
@@ -122,11 +152,27 @@
                     timerDisplay.textContent = `Cronômetro: ${elapsedTime}s`;
                 }, 100);
             } else {
-                // Para o cronômetro
+                // Para o cronômetro e salva na tabela
                 clearInterval(interval);
+                const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                addLog(elapsedTime);
                 startTime = null;
                 timerDisplay.textContent = "Cronômetro: 0.00s";
             }
+        }
+
+        function addLog(elapsedTime) {
+            logCounter++;
+            const now = new Date();
+            const formattedDate = now.toLocaleDateString();
+            const formattedTime = now.toLocaleTimeString();
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${logCounter}</td>
+                <td>${elapsedTime}</td>
+                <td>${formattedDate} ${formattedTime}</td>
+            `;
+            tableBody.appendChild(row);
         }
 
         video.addEventListener('loadeddata', detectWhiteColor);
