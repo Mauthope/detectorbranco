@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Detecção de Movimento - Cronômetro</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <style>
         body {
             margin: 0;
@@ -22,15 +23,6 @@
             width: 100%;
             height: auto;
             max-height: 50vh;
-        }
-        #center-mark {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 200px;
-            height: 50px;
-            border: 2px solid red;
         }
         #controls {
             margin-top: 10px;
@@ -83,7 +75,6 @@
 </head>
 <body>
     <video id="camera" autoplay></video>
-    <div id="center-mark"></div>
     <div id="controls">
         <div id="timer">Cronômetro: 0.00s</div>
         <button id="download">Download CSV</button>
@@ -105,8 +96,7 @@
         const tableBody = document.getElementById('time-log').querySelector('tbody');
         const downloadButton = document.getElementById('download');
         let stream = null;
-        let previousFrame = null;
-        let isMovementDetected = false;
+        let isMotionDetected = false;
         let startTime = null;
         let interval = null;
         let logCounter = 0;
@@ -122,44 +112,53 @@
             }
         }
 
-        function detectMovement() {
+        function detectMotion() {
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
 
-            // Captura o quadro atual
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const currentFrame = context.getImageData(0, 0, canvas.width, canvas.height);
+            let prevFrame = null;
 
-            if (previousFrame) {
-                let movementCount = 0;
+            function analyzeFrame() {
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const currentFrame = context.getImageData(0, 0, canvas.width, canvas.height);
 
-                // Verifica a diferença entre quadros
-                for (let i = 0; i < currentFrame.data.length; i += 4) {
-                    const diff = Math.abs(currentFrame.data[i] - previousFrame.data[i]) +
-                                 Math.abs(currentFrame.data[i + 1] - previousFrame.data[i + 1]) +
-                                 Math.abs(currentFrame.data[i + 2] - previousFrame.data[i + 2]);
-                    if (diff > 50) movementCount++;
+                if (prevFrame) {
+                    let motionLevel = 0;
+
+                    // Verifica diferença entre o quadro atual e o anterior
+                    for (let i = 0; i < currentFrame.data.length; i += 4) {
+                        const diff =
+                            Math.abs(currentFrame.data[i] - prevFrame.data[i]) +
+                            Math.abs(currentFrame.data[i + 1] - prevFrame.data[i + 1]) +
+                            Math.abs(currentFrame.data[i + 2] - prevFrame.data[i + 2]);
+
+                        if (diff > 50) {
+                            motionLevel++;
+                        }
+                    }
+
+                    // Se a porcentagem de pixels com movimento for alta, detecta movimento
+                    const motionRatio = motionLevel / (canvas.width * canvas.height);
+                    if (motionRatio > 0.02) {
+                        if (!isMotionDetected) {
+                            isMotionDetected = true;
+                            toggleTimer();
+                        }
+                    } else {
+                        if (isMotionDetected) {
+                            isMotionDetected = false;
+                            toggleTimer();
+                        }
+                    }
                 }
 
-                // Define um limite de pixels em movimento para detectar movimento
-                const movementRatio = movementCount / (canvas.width * canvas.height);
-                if (movementRatio > 0.02) {
-                    if (!isMovementDetected) {
-                        isMovementDetected = true;
-                        toggleTimer();
-                    }
-                } else {
-                    if (isMovementDetected) {
-                        isMovementDetected = false;
-                        toggleTimer();
-                    }
-                }
+                prevFrame = currentFrame;
+                requestAnimationFrame(analyzeFrame);
             }
 
-            previousFrame = context.getImageData(0, 0, canvas.width, canvas.height);
-            requestAnimationFrame(detectMovement);
+            analyzeFrame();
         }
 
         function toggleTimer() {
@@ -213,7 +212,7 @@
 
         downloadButton.addEventListener('click', downloadCSV);
 
-        video.addEventListener('loadeddata', detectMovement);
+        video.addEventListener('loadeddata', detectMotion);
         startCamera();
     </script>
 </body>
