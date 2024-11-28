@@ -58,8 +58,11 @@
         table tr:nth-child(even) {
             background-color: #222;
         }
-        #download {
-            margin: 10px;
+        #buttons {
+            margin-top: 10px;
+        }
+        button {
+            margin: 5px;
             padding: 10px 20px;
             background-color: #333;
             color: #fff;
@@ -67,7 +70,7 @@
             cursor: pointer;
             border-radius: 5px;
         }
-        #download:hover {
+        button:hover {
             background-color: #444;
         }
     </style>
@@ -75,7 +78,10 @@
 <body>
     <video id="camera" autoplay muted></video>
     <div id="timer">Cronômetro: 0.00s</div>
-    <button id="download">Download CSV</button>
+    <div id="buttons">
+        <button id="download">Download CSV</button>
+        <button id="clear">Limpar Tabela</button>
+    </div>
     <table id="time-log">
         <thead>
             <tr>
@@ -93,12 +99,13 @@
         const timerDisplay = document.getElementById('timer');
         const tableBody = document.getElementById('time-log').querySelector('tbody');
         const downloadButton = document.getElementById('download');
+        const clearButton = document.getElementById('clear');
         let stream = null;
-        let isPersonDetected = false;
         let startTime = null;
         let interval = null;
         let logCounter = 0;
         let model = null;
+        let personDetected = 0; // Contador de pessoas detectadas
 
         async function startCamera() {
             try {
@@ -121,16 +128,17 @@
             if (!model) return;
 
             model.detect(video).then(predictions => {
-                const personDetected = predictions.some(prediction => 
+                const currentPersonCount = predictions.filter(prediction => 
                     prediction.class === "person" && prediction.score > 0.6
-                );
+                ).length;
 
-                if (personDetected && !isPersonDetected) {
-                    isPersonDetected = true;
+                if (currentPersonCount > personDetected) {
+                    // Nova pessoa detectada
                     toggleTimer();
-                } else if (!personDetected && isPersonDetected) {
-                    isPersonDetected = false;
-                    toggleTimer();
+                    personDetected = currentPersonCount;
+                } else if (currentPersonCount < personDetected) {
+                    // Pessoa saiu, mas espera nova entrada
+                    personDetected = currentPersonCount;
                 }
 
                 requestAnimationFrame(detectPerson);
@@ -186,7 +194,13 @@
             document.body.removeChild(link);
         }
 
+        function clearTable() {
+            tableBody.innerHTML = '';
+            logCounter = 0;
+        }
+
         downloadButton.addEventListener('click', downloadCSV);
+        clearButton.addEventListener('click', clearTable);
 
         video.addEventListener('loadeddata', () => {
             loadModel();
