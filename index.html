@@ -56,6 +56,16 @@
             background-color: #333;
             color: #fff;
         }
+        #time-log tbody {
+            display: block;
+            max-height: 100px; /* Limita a tabela a duas linhas (50px cada, ajustável) */
+            overflow-y: auto;
+        }
+        #time-log thead, #time-log tbody tr {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
         table tr:nth-child(even) {
             background-color: #222;
         }
