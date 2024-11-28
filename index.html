@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detecção de Cor Branca - Movimento Lateral</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <title>Detecção de Movimento - Cronômetro</title>
     <style>
         body {
             margin: 0;
@@ -106,8 +105,8 @@
         const tableBody = document.getElementById('time-log').querySelector('tbody');
         const downloadButton = document.getElementById('download');
         let stream = null;
-        let isWhiteDetected = false;
-        let isClearDetected = true;
+        let previousFrame = null;
+        let isMovementDetected = false;
         let startTime = null;
         let interval = null;
         let logCounter = 0;
@@ -123,51 +122,44 @@
             }
         }
 
-        function detectWhiteColor() {
+        function detectMovement() {
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
 
+            // Captura o quadro atual
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const currentFrame = context.getImageData(0, 0, canvas.width, canvas.height);
 
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            const width = 200; // Área horizontal maior
-            const height = 50; // Área vertical reduzida
+            if (previousFrame) {
+                let movementCount = 0;
 
-            const imageData = context.getImageData(centerX - width / 2, centerY - height / 2, width, height);
-            const data = imageData.data;
-
-            let whitePixelCount = 0;
-            for (let i = 0; i < data.length; i += 4) {
-                const r = data[i];
-                const g = data[i + 1];
-                const b = data[i + 2];
-
-                // Verifica se o pixel é próximo de branco
-                if (r > 200 && g > 200 && b > 200) {
-                    whitePixelCount++;
+                // Verifica a diferença entre quadros
+                for (let i = 0; i < currentFrame.data.length; i += 4) {
+                    const diff = Math.abs(currentFrame.data[i] - previousFrame.data[i]) +
+                                 Math.abs(currentFrame.data[i + 1] - previousFrame.data[i + 1]) +
+                                 Math.abs(currentFrame.data[i + 2] - previousFrame.data[i + 2]);
+                    if (diff > 50) movementCount++;
                 }
-            }
 
-            const whiteRatio = whitePixelCount / (width * height);
-
-            if (whiteRatio > 0.9) {
-                if (!isWhiteDetected && isClearDetected) {
-                    isWhiteDetected = true;
-                    isClearDetected = false;
-                    toggleTimer();
-                }
-            } else {
-                if (isWhiteDetected) {
-                    isWhiteDetected = false;
+                // Define um limite de pixels em movimento para detectar movimento
+                const movementRatio = movementCount / (canvas.width * canvas.height);
+                if (movementRatio > 0.02) {
+                    if (!isMovementDetected) {
+                        isMovementDetected = true;
+                        toggleTimer();
+                    }
                 } else {
-                    isClearDetected = true;
+                    if (isMovementDetected) {
+                        isMovementDetected = false;
+                        toggleTimer();
+                    }
                 }
             }
 
-            requestAnimationFrame(detectWhiteColor);
+            previousFrame = context.getImageData(0, 0, canvas.width, canvas.height);
+            requestAnimationFrame(detectMovement);
         }
 
         function toggleTimer() {
@@ -221,7 +213,7 @@
 
         downloadButton.addEventListener('click', downloadCSV);
 
-        video.addEventListener('loadeddata', detectWhiteColor);
+        video.addEventListener('loadeddata', detectMovement);
         startCamera();
     </script>
 </body>
