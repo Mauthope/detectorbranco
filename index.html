@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detecção de Movimento - Cronômetro</title>
+    <title>Detecção de Movimento</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <style>
         body {
@@ -24,13 +24,10 @@
             height: auto;
             max-height: 50vh;
         }
-        #controls {
-            margin-top: 10px;
-            text-align: center;
-        }
         #timer {
             font-size: 1.5rem;
             font-weight: bold;
+            margin-top: 20px;
         }
         table {
             width: 90%;
@@ -75,10 +72,8 @@
 </head>
 <body>
     <video id="camera" autoplay></video>
-    <div id="controls">
-        <div id="timer">Cronômetro: 0.00s</div>
-        <button id="download">Download CSV</button>
-    </div>
+    <div id="timer">Cronômetro: 0.00s</div>
+    <button id="download">Download CSV</button>
     <table id="time-log">
         <thead>
             <tr>
@@ -90,13 +85,15 @@
         <tbody>
         </tbody>
     </table>
+
     <script>
         const video = document.getElementById('camera');
         const timerDisplay = document.getElementById('timer');
         const tableBody = document.getElementById('time-log').querySelector('tbody');
         const downloadButton = document.getElementById('download');
         let stream = null;
-        let isMotionDetected = false;
+        let previousFrame = null;
+        let isMoving = false;
         let startTime = null;
         let interval = null;
         let logCounter = 0;
@@ -112,53 +109,47 @@
             }
         }
 
-        function detectMotion() {
+        function detectMovement() {
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
 
-            let prevFrame = null;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const currentFrame = context.getImageData(0, 0, canvas.width, canvas.height);
 
-            function analyzeFrame() {
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const currentFrame = context.getImageData(0, 0, canvas.width, canvas.height);
-
-                if (prevFrame) {
-                    let motionLevel = 0;
-
-                    // Verifica diferença entre o quadro atual e o anterior
-                    for (let i = 0; i < currentFrame.data.length; i += 4) {
-                        const diff =
-                            Math.abs(currentFrame.data[i] - prevFrame.data[i]) +
-                            Math.abs(currentFrame.data[i + 1] - prevFrame.data[i + 1]) +
-                            Math.abs(currentFrame.data[i + 2] - prevFrame.data[i + 2]);
-
-                        if (diff > 50) {
-                            motionLevel++;
-                        }
+            if (previousFrame) {
+                const diff = compareFrames(previousFrame, currentFrame);
+                if (diff > 0.02) {  // Define a threshold for detecting significant movement
+                    if (!isMoving) {
+                        isMoving = true;
+                        toggleTimer();
                     }
-
-                    // Se a porcentagem de pixels com movimento for alta, detecta movimento
-                    const motionRatio = motionLevel / (canvas.width * canvas.height);
-                    if (motionRatio > 0.02) {
-                        if (!isMotionDetected) {
-                            isMotionDetected = true;
-                            toggleTimer();
-                        }
-                    } else {
-                        if (isMotionDetected) {
-                            isMotionDetected = false;
-                            toggleTimer();
-                        }
+                } else {
+                    if (isMoving) {
+                        isMoving = false;
                     }
                 }
-
-                prevFrame = currentFrame;
-                requestAnimationFrame(analyzeFrame);
             }
 
-            analyzeFrame();
+            previousFrame = currentFrame;
+            requestAnimationFrame(detectMovement);
+        }
+
+        function compareFrames(frame1, frame2) {
+            let diff = 0;
+            for (let i = 0; i < frame1.data.length; i += 4) {
+                const r1 = frame1.data[i];
+                const g1 = frame1.data[i + 1];
+                const b1 = frame1.data[i + 2];
+                const r2 = frame2.data[i];
+                const g2 = frame2.data[i + 1];
+                const b2 = frame2.data[i + 2];
+
+                // Calculate color difference
+                diff += Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2);
+            }
+            return diff / (frame1.data.length / 4);  // Average color difference
         }
 
         function toggleTimer() {
@@ -212,7 +203,7 @@
 
         downloadButton.addEventListener('click', downloadCSV);
 
-        video.addEventListener('loadeddata', detectMotion);
+        video.addEventListener('loadeddata', detectMovement);
         startCamera();
     </script>
 </body>
