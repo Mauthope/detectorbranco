@@ -77,8 +77,6 @@
             position: absolute;
             top: 0;
             left: 0;
-            pointer-events: none;
-            border: 2px solid red;
         }
     </style>
 </head>
@@ -120,13 +118,12 @@
         async function startCamera() {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment" },
+                    video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
                 });
                 video.srcObject = stream;
-                video.width = window.innerWidth;
-                video.height = window.innerHeight * 0.5;
-                canvas.width = video.width;
-                canvas.height = video.height;
+                video.play();
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
             } catch (error) {
                 alert("Erro ao acessar a câmera: " + error.message);
             }
@@ -144,34 +141,18 @@
             if (!model) return;
 
             model.detect(video).then(predictions => {
-                // Limpar a tela antes de desenhar novas caixas
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.clearRect(0, 0, canvas.width, canvas.height); // Limpa o canvas
 
-                // Ajustar as coordenadas da caixa de acordo com a escala do vídeo
                 predictions.forEach(prediction => {
                     if (prediction.class === "person" && prediction.score > 0.1) {
-                        // Ajustar a escala da caixa para o tamanho do vídeo
-                        const [x, y, width, height] = prediction.bbox;
-
-                        const scaleX = canvas.width / video.videoWidth;
-                        const scaleY = canvas.height / video.videoHeight;
-
-                        const scaledX = x * scaleX;
-                        const scaledY = y * scaleY;
-                        const scaledWidth = width * scaleX;
-                        const scaledHeight = height * scaleY;
-
-                        // Desenha a caixa de detecção
+                        // Desenha a caixa delimitadora
                         ctx.beginPath();
-                        ctx.rect(scaledX, scaledY, scaledWidth, scaledHeight);
-                        ctx.lineWidth = 2;
+                        ctx.rect(prediction.bbox[0], prediction.bbox[1], prediction.bbox[2], prediction.bbox[3]);
+                        ctx.lineWidth = 3;
                         ctx.strokeStyle = 'red';
                         ctx.fillStyle = 'red';
                         ctx.stroke();
-                        ctx.fillText(`${prediction.class} (${Math.round(prediction.score * 100)}%)`, scaledX, scaledY > 10 ? scaledY - 10 : 10);
-
-                        // Incrementa contador de pessoas detectadas
-                        personDetected++;
+                        ctx.fillText(prediction.class, prediction.bbox[0], prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10);
                     }
                 });
 
@@ -251,17 +232,19 @@
             document.body.removeChild(link);
         }
 
-        // Limpa a tabela de registros
         function clearTable() {
             tableBody.innerHTML = '';
+            logCounter = 0;
         }
 
         downloadButton.addEventListener('click', downloadCSV);
         clearButton.addEventListener('click', clearTable);
 
-        // Inicia a câmera e carrega o modelo
+        video.addEventListener('loadeddata', () => {
+            loadModel();
+        });
+
         startCamera();
-        loadModel();
     </script>
 </body>
 </html>
