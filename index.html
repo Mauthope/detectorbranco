@@ -26,6 +26,12 @@
             max-height: 50vh;
             border: 2px solid #333;
         }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none; /* Para que o canvas não interfira no vídeo */
+        }
         #timer {
             font-size: 1.5rem;
             font-weight: bold;
@@ -73,16 +79,11 @@
         button:hover {
             background-color: #444;
         }
-        canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
     </style>
 </head>
 <body>
     <video id="camera" autoplay muted></video>
-    <canvas id="canvas"></canvas>
+    <canvas id="canvas"></canvas> <!-- Canvas para desenhar as caixas -->
     <div id="timer">Cronômetro: 0.00s</div>
     <div id="buttons">
         <button id="download">Download CSV</button>
@@ -118,12 +119,9 @@
         async function startCamera() {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+                    video: { facingMode: "environment" },
                 });
                 video.srcObject = stream;
-                video.play();
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
             } catch (error) {
                 alert("Erro ao acessar a câmera: " + error.message);
             }
@@ -141,18 +139,27 @@
             if (!model) return;
 
             model.detect(video).then(predictions => {
-                ctx.clearRect(0, 0, canvas.width, canvas.height); // Limpa o canvas
+                // Limpar canvas antes de desenhar novas caixas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Ajuste do tamanho do canvas para o tamanho do vídeo
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
 
                 predictions.forEach(prediction => {
                     if (prediction.class === "person" && prediction.score > 0.1) {
-                        // Desenha a caixa delimitadora
+                        // Desenha um retângulo ao redor da pessoa detectada
                         ctx.beginPath();
                         ctx.rect(prediction.bbox[0], prediction.bbox[1], prediction.bbox[2], prediction.bbox[3]);
-                        ctx.lineWidth = 3;
-                        ctx.strokeStyle = 'red';
-                        ctx.fillStyle = 'red';
+                        ctx.lineWidth = 4;
+                        ctx.strokeStyle = "red";
+                        ctx.fillStyle = "red";
                         ctx.stroke();
-                        ctx.fillText(prediction.class, prediction.bbox[0], prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10);
+                        ctx.fillText(
+                            `${prediction.class} (${(prediction.score * 100).toFixed(2)}%)`,
+                            prediction.bbox[0] + 5,
+                            prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10
+                        );
                     }
                 });
 
