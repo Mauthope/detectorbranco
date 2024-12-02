@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detecção de Pessoas com YOLO</title>
+    <title>Detecção de Pessoas com YOLOv3</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/yolo-tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <script src="https://cdn.jsdelivr.net/npm/yolov3-tfjs"></script>
     <style>
         body {
             margin: 0;
@@ -120,8 +121,8 @@
         }
 
         async function loadModel() {
-            model = await yolo.load(); // Carrega o modelo YOLO
-            console.log("Modelo YOLO carregado com sucesso!");
+            model = await yolov3.load(); // Carrega o modelo YOLOv3
+            console.log("Modelo YOLOv3 carregado com sucesso!");
             detectPerson();
         }
 
@@ -180,22 +181,20 @@
 
         function downloadCSV() {
             let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Número,Tempo Decorrido (s),Data e Hora\n";  // Cabeçalho da tabela
+            csvContent += "Número,Tempo Decorrido (s),Data e Hora\n";
 
-            // Itera sobre os registros da tabela e cria o conteúdo do CSV
             const rows = tableBody.querySelectorAll('tr');
             if (rows.length === 0) {
                 alert("Nenhum dado disponível para exportar.");
-                return; // Sai da função caso não haja dados
+                return;
             }
 
-            rows.forEach((row, index) => {
+            rows.forEach((row) => {
                 const cells = row.querySelectorAll('td');
                 const rowData = Array.from(cells).map(cell => `"${cell.textContent.replace(/"/g, '""')}"`).join(",");
                 csvContent += rowData + "\n";
             });
 
-            // Criação do link para download do CSV
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement('a');
             link.setAttribute('href', encodedUri);
