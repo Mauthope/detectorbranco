@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detecção de Pessoas com YOLOv3</title>
+    <title>Detecção de Pessoas</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
-    <script src="https://cdn.jsdelivr.net/npm/yolov3-tfjs"></script>
     <style>
         body {
             margin: 0;
@@ -107,7 +106,6 @@
         let logCounter = 0;
         let model = null;
         let personDetected = 0; // Contador de pessoas detectadas
-        let lastDetectionTime = null; // Tempo da última detecção
 
         async function startCamera() {
             try {
@@ -121,31 +119,33 @@
         }
 
         async function loadModel() {
-            model = await yolov3.load(); // Carrega o modelo YOLOv3
-            console.log("Modelo YOLOv3 carregado com sucesso!");
+            model = await cocoSsd.load();
+            console.log("Modelo carregado com sucesso!");
             detectPerson();
         }
 
-        function detectPerson() {
-            if (!model) return;
+ let lastDetectionTime = null; // Tempo da última detecção
 
-            model.detect(video).then(predictions => {
-                const now = Date.now();
-                const currentPersonCount = predictions.filter(prediction => 
-                    prediction.class === "person" && prediction.score > 0.6
-                ).length;
+function detectPerson() {
+    if (!model) return;
 
-                if (currentPersonCount > 0) {
-                    if (!lastDetectionTime || (now - lastDetectionTime) >= 60000) {
-                        // Nova detecção permitida após 1 minuto
-                        toggleTimer();
-                        lastDetectionTime = now;
-                    }
-                }
+    model.detect(video).then(predictions => {
+        const currentPersonCount = predictions.filter(prediction => 
+            prediction.class === "person" && prediction.score > 0.1
+        ).length;
 
-                requestAnimationFrame(detectPerson);
-            });
+        const now = Date.now();
+        if (currentPersonCount > 0) {
+            if (!lastDetectionTime || (now - lastDetectionTime) >= 60000) {
+                // Nova detecção permitida após 1 minuto
+                toggleTimer();
+                lastDetectionTime = now;
+            }
         }
+
+        requestAnimationFrame(detectPerson);
+    });
+}
 
         function toggleTimer() {
             if (!startTime) {
@@ -179,30 +179,35 @@
             tableBody.appendChild(row);
         }
 
-        function downloadCSV() {
-            let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Número,Tempo Decorrido (s),Data e Hora\n";
+function downloadCSV() {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Número,Tempo Decorrido (s),Data e Hora\n";  // Cabeçalho da tabela
 
-            const rows = tableBody.querySelectorAll('tr');
-            if (rows.length === 0) {
-                alert("Nenhum dado disponível para exportar.");
-                return;
-            }
+    // Itera sobre os registros da tabela e cria o conteúdo do CSV
+    const rows = tableBody.querySelectorAll('tr');
+    if (rows.length === 0) {
+        alert("Nenhum dado disponível para exportar.");
+        return; // Sai da função caso não haja dados
+    }
 
-            rows.forEach((row) => {
-                const cells = row.querySelectorAll('td');
-                const rowData = Array.from(cells).map(cell => `"${cell.textContent.replace(/"/g, '""')}"`).join(",");
-                csvContent += rowData + "\n";
-            });
+    rows.forEach((row, index) => {
+        const cells = row.querySelectorAll('td');
+        const rowData = Array.from(cells).map(cell => `"${cell.textContent.replace(/"/g, '""')}"`).join(",");
+        csvContent += rowData + "\n";
+    });
 
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement('a');
-            link.setAttribute('href', encodedUri);
-            link.setAttribute('download', 'log_pessoas.csv');
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
+    // Criação do link para download do CSV
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', 'log_pessoas.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+
+
 
         function clearTable() {
             tableBody.innerHTML = '';
