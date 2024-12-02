@@ -157,7 +157,7 @@
                 });
 
                 const currentPersonCount = predictions.filter(prediction => 
-                    prediction.class === "person" && prediction.score > 0.1
+                    prediction.class === "person" && prediction.score > 0.01
                 ).length;
 
                 const now = Date.now();
