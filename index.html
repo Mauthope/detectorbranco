@@ -147,16 +147,28 @@
                 // Limpar a tela antes de desenhar novas caixas
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+                // Ajustar as coordenadas da caixa de acordo com a escala do vídeo
                 predictions.forEach(prediction => {
                     if (prediction.class === "person" && prediction.score > 0.1) {
+                        // Ajustar a escala da caixa para o tamanho do vídeo
+                        const [x, y, width, height] = prediction.bbox;
+
+                        const scaleX = canvas.width / video.videoWidth;
+                        const scaleY = canvas.height / video.videoHeight;
+
+                        const scaledX = x * scaleX;
+                        const scaledY = y * scaleY;
+                        const scaledWidth = width * scaleX;
+                        const scaledHeight = height * scaleY;
+
                         // Desenha a caixa de detecção
                         ctx.beginPath();
-                        ctx.rect(prediction.bbox[0], prediction.bbox[1], prediction.bbox[2], prediction.bbox[3]);
+                        ctx.rect(scaledX, scaledY, scaledWidth, scaledHeight);
                         ctx.lineWidth = 2;
                         ctx.strokeStyle = 'red';
                         ctx.fillStyle = 'red';
                         ctx.stroke();
-                        ctx.fillText(`${prediction.class} (${Math.round(prediction.score * 100)}%)`, prediction.bbox[0], prediction.bbox[1] > 10 ? prediction.bbox[1] - 10 : 10);
+                        ctx.fillText(`${prediction.class} (${Math.round(prediction.score * 100)}%)`, scaledX, scaledY > 10 ? scaledY - 10 : 10);
 
                         // Incrementa contador de pessoas detectadas
                         personDetected++;
@@ -239,19 +251,17 @@
             document.body.removeChild(link);
         }
 
+        // Limpa a tabela de registros
         function clearTable() {
             tableBody.innerHTML = '';
-            logCounter = 0;
         }
 
         downloadButton.addEventListener('click', downloadCSV);
         clearButton.addEventListener('click', clearTable);
 
-        video.addEventListener('loadeddata', () => {
-            loadModel();
-        });
-
+        // Inicia a câmera e carrega o modelo
         startCamera();
+        loadModel();
     </script>
 </body>
 </html>
