@@ -25,15 +25,6 @@
             height: auto;
             max-height: 50vh;
             border: 2px solid #333;
-            position: absolute;
-        }
-        canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            pointer-events: none; /* Para não interferir na interação com o vídeo */
-            width: 100%;
-            height: 100%;
         }
         #timer {
             font-size: 1.5rem;
@@ -82,6 +73,11 @@
         button:hover {
             background-color: #444;
         }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
     </style>
 </head>
 <body>
@@ -107,11 +103,11 @@
     <script>
         const video = document.getElementById('camera');
         const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
         const timerDisplay = document.getElementById('timer');
         const tableBody = document.getElementById('time-log').querySelector('tbody');
         const downloadButton = document.getElementById('download');
         const clearButton = document.getElementById('clear');
-        const ctx = canvas.getContext('2d');
         let stream = null;
         let startTime = null;
         let interval = null;
@@ -122,9 +118,12 @@
         async function startCamera() {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment" },
+                    video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
                 });
                 video.srcObject = stream;
+                video.play();
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
             } catch (error) {
                 alert("Erro ao acessar a câmera: " + error.message);
             }
@@ -142,24 +141,18 @@
             if (!model) return;
 
             model.detect(video).then(predictions => {
-                // Limpar o canvas antes de desenhar novamente
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.clearRect(0, 0, canvas.width, canvas.height); // Limpa o canvas
 
                 predictions.forEach(prediction => {
                     if (prediction.class === "person" && prediction.score > 0.1) {
-                        // Desenha a caixa ao redor da pessoa detectada
+                        // Desenha a caixa delimitadora
                         ctx.beginPath();
                         ctx.rect(prediction.bbox[0], prediction.bbox[1], prediction.bbox[2], prediction.bbox[3]);
-                        ctx.lineWidth = 4;
-                        ctx.strokeStyle = 'red'; // Cor da caixa
-                        ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
-                        ctx.fill();
+                        ctx.lineWidth = 3;
+                        ctx.strokeStyle = 'red';
+                        ctx.fillStyle = 'red';
                         ctx.stroke();
-
-                        // Exibe o nome da classe e a confiança no centro da caixa
-                        ctx.fillStyle = "white";
-                        ctx.font = "16px Arial";
-                        ctx.fillText(`Pessoa: ${Math.round(prediction.score * 100)}%`, prediction.bbox[0] + 5, prediction.bbox[1] + 20);
+                        ctx.fillText(prediction.class, prediction.bbox[0], prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10);
                     }
                 });
 
