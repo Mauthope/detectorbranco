@@ -20,7 +20,10 @@
             height: 100vh;
             overflow: hidden;
         }
-        video {
+        video, canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
             height: auto;
             max-height: 50vh;
@@ -30,36 +33,13 @@
             font-size: 1.5rem;
             font-weight: bold;
             margin-top: 20px;
-        }
-        table {
-            width: 90%;
-            margin: 20px auto;
-            border-collapse: collapse;
-            text-align: left;
-        }
-        table th, table td {
-            padding: 10px;
-            border: 1px solid #ddd;
-        }
-        table th {
-            background-color: #333;
-            color: #fff;
-        }
-        #time-log tbody {
-            display: block;
-            max-height: 100px;
-            overflow-y: auto;
-        }
-        #time-log thead, #time-log tbody tr {
-            display: table;
-            width: 100%;
-            table-layout: fixed;
-        }
-        table tr:nth-child(even) {
-            background-color: #222;
+            position: relative;
+            z-index: 1;
         }
         #buttons {
             margin-top: 10px;
+            position: relative;
+            z-index: 1;
         }
         button {
             margin: 5px;
@@ -77,40 +57,24 @@
 </head>
 <body>
     <video id="camera" autoplay muted></video>
+    <canvas id="canvas"></canvas>
     <div id="timer">Cronômetro: 0.00s</div>
     <div id="buttons">
         <button id="download">Download CSV</button>
         <button id="clear">Limpar Tabela</button>
     </div>
-    <table id="time-log">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Tempo Decorrido (s)</th>
-                <th>Data e Hora</th>
-            </tr>
-        </thead>
-        <tbody>
-        </tbody>
-    </table>
 
     <script>
         const video = document.getElementById('camera');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
         const timerDisplay = document.getElementById('timer');
-        const tableBody = document.getElementById('time-log').querySelector('tbody');
-        const downloadButton = document.getElementById('download');
-        const clearButton = document.getElementById('clear');
-        let stream = null;
-        let startTime = null;
-        let interval = null;
-        let logCounter = 0;
         let model = null;
-        let personDetected = 0; // Contador de pessoas detectadas
 
         async function startCamera() {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment" },
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 1280, height: 720, facingMode: "environment" }
                 });
                 video.srcObject = stream;
             } catch (error) {
@@ -121,101 +85,36 @@
         async function loadModel() {
             model = await cocoSsd.load();
             console.log("Modelo carregado com sucesso!");
-            detectPerson();
+            detectObjects();
         }
 
- let lastDetectionTime = null; // Tempo da última detecção
+        function detectObjects() {
+            if (!model) return;
 
-function detectPerson() {
-    if (!model) return;
+            model.detect(video).then(predictions => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
 
-    model.detect(video).then(predictions => {
-        const currentPersonCount = predictions.filter(prediction => 
-            prediction.class === "person" && prediction.score > 0.1
-        ).length;
+                predictions.forEach(prediction => {
+                    if (prediction.class === "person" && prediction.score > 0.5) {
+                        const [x, y, width, height] = prediction.bbox;
+                        ctx.strokeStyle = "red";
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(x, y, width, height);
+                        ctx.font = "18px Arial";
+                        ctx.fillStyle = "red";
+                        ctx.fillText(
+                            `${prediction.class} (${Math.round(prediction.score * 100)}%)`,
+                            x,
+                            y > 20 ? y - 10 : y + 20
+                        );
+                    }
+                });
 
-        const now = Date.now();
-        if (currentPersonCount > 0) {
-            if (!lastDetectionTime || (now - lastDetectionTime) >= 60000) {
-                // Nova detecção permitida após 1 minuto
-                toggleTimer();
-                lastDetectionTime = now;
-            }
+                requestAnimationFrame(detectObjects);
+            });
         }
-
-        requestAnimationFrame(detectPerson);
-    });
-}
-
-        function toggleTimer() {
-            if (!startTime) {
-                // Inicia o cronômetro
-                startTime = Date.now();
-                interval = setInterval(() => {
-                    const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(0);
-                    timerDisplay.textContent = `Cronômetro: ${elapsedTime}s`;
-                }, 100);
-            } else {
-                // Para o cronômetro e salva na tabela
-                clearInterval(interval);
-                const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(0);
-                addLog(elapsedTime);
-                startTime = null;
-                timerDisplay.textContent = "Cronômetro: 0.00s";
-            }
-        }
-
-        function addLog(elapsedTime) {
-            logCounter++;
-            const now = new Date();
-            const formattedDate = now.toLocaleDateString();
-            const formattedTime = now.toLocaleTimeString();
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${logCounter}</td>
-                <td>${elapsedTime}</td>
-                <td>${formattedDate} ${formattedTime}</td>
-            `;
-            tableBody.appendChild(row);
-        }
-
-function downloadCSV() {
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Número,Tempo Decorrido (s),Data e Hora\n";  // Cabeçalho da tabela
-
-    // Itera sobre os registros da tabela e cria o conteúdo do CSV
-    const rows = tableBody.querySelectorAll('tr');
-    if (rows.length === 0) {
-        alert("Nenhum dado disponível para exportar.");
-        return; // Sai da função caso não haja dados
-    }
-
-    rows.forEach((row, index) => {
-        const cells = row.querySelectorAll('td');
-        const rowData = Array.from(cells).map(cell => `"${cell.textContent.replace(/"/g, '""')}"`).join(",");
-        csvContent += rowData + "\n";
-    });
-
-    // Criação do link para download do CSV
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', 'log_pessoas.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-
-
-
-        function clearTable() {
-            tableBody.innerHTML = '';
-            logCounter = 0;
-        }
-
-        downloadButton.addEventListener('click', downloadCSV);
-        clearButton.addEventListener('click', clearTable);
 
         video.addEventListener('loadeddata', () => {
             loadModel();
