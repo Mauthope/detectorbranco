@@ -77,6 +77,8 @@
             position: absolute;
             top: 0;
             left: 0;
+            pointer-events: none;
+            border: 2px solid red;
         }
     </style>
 </head>
@@ -118,12 +120,13 @@
         async function startCamera() {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+                    video: { facingMode: "environment" },
                 });
                 video.srcObject = stream;
-                video.play();
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
+                video.width = window.innerWidth;
+                video.height = window.innerHeight * 0.5;
+                canvas.width = video.width;
+                canvas.height = video.height;
             } catch (error) {
                 alert("Erro ao acessar a câmera: " + error.message);
             }
@@ -141,18 +144,22 @@
             if (!model) return;
 
             model.detect(video).then(predictions => {
-                ctx.clearRect(0, 0, canvas.width, canvas.height); // Limpa o canvas
+                // Limpar a tela antes de desenhar novas caixas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
 
                 predictions.forEach(prediction => {
                     if (prediction.class === "person" && prediction.score > 0.1) {
-                        // Desenha a caixa delimitadora
+                        // Desenha a caixa de detecção
                         ctx.beginPath();
                         ctx.rect(prediction.bbox[0], prediction.bbox[1], prediction.bbox[2], prediction.bbox[3]);
-                        ctx.lineWidth = 3;
+                        ctx.lineWidth = 2;
                         ctx.strokeStyle = 'red';
                         ctx.fillStyle = 'red';
                         ctx.stroke();
-                        ctx.fillText(prediction.class, prediction.bbox[0], prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10);
+                        ctx.fillText(`${prediction.class} (${Math.round(prediction.score * 100)}%)`, prediction.bbox[0], prediction.bbox[1] > 10 ? prediction.bbox[1] - 10 : 10);
+
+                        // Incrementa contador de pessoas detectadas
+                        personDetected++;
                     }
                 });
 
