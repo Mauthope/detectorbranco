@@ -124,26 +124,28 @@
             detectPerson();
         }
 
-        function detectPerson() {
-            if (!model) return;
+ let lastDetectionTime = null; // Tempo da última detecção
 
-            model.detect(video).then(predictions => {
-                const currentPersonCount = predictions.filter(prediction => 
-                    prediction.class === "person" && prediction.score > 0.6
-                ).length;
+function detectPerson() {
+    if (!model) return;
 
-                if (currentPersonCount > personDetected) {
-                    // Nova pessoa detectada
-                    toggleTimer();
-                    personDetected = currentPersonCount;
-                } else if (currentPersonCount < personDetected) {
-                    // Pessoa saiu, mas espera nova entrada
-                    personDetected = currentPersonCount;
-                }
+    model.detect(video).then(predictions => {
+        const currentPersonCount = predictions.filter(prediction => 
+            prediction.class === "person" && prediction.score > 0.6
+        ).length;
 
-                requestAnimationFrame(detectPerson);
-            });
+        const now = Date.now();
+        if (currentPersonCount > 0) {
+            if (!lastDetectionTime || (now - lastDetectionTime) >= 60000) {
+                // Nova detecção permitida após 1 minuto
+                toggleTimer();
+                lastDetectionTime = now;
+            }
         }
+
+        requestAnimationFrame(detectPerson);
+    });
+}
 
         function toggleTimer() {
             if (!startTime) {
