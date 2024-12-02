@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detecção de Pessoas</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <title>Detecção de Pessoas com YOLOv8</title>
+    <script src="https://cdn.jsdelivr.net/npm/@ultralytics/yolo"></script>
     <style>
+        /* Estilo permanece o mesmo */
         body {
             margin: 0;
             padding: 0;
@@ -104,8 +104,8 @@
         let startTime = null;
         let interval = null;
         let logCounter = 0;
+        let lastDetectionTime = null; // Tempo da última detecção
         let model = null;
-        let personDetected = 0; // Contador de pessoas detectadas
 
         async function startCamera() {
             try {
@@ -119,33 +119,31 @@
         }
 
         async function loadModel() {
-            model = await cocoSsd.load();
-            console.log("Modelo carregado com sucesso!");
+            model = new YOLO('yolov8n'); // Carrega o modelo YOLOv8n (versão leve)
+            console.log("Modelo YOLO carregado com sucesso!");
             detectPerson();
         }
 
- let lastDetectionTime = null; // Tempo da última detecção
+        function detectPerson() {
+            if (!model) return;
 
-function detectPerson() {
-    if (!model) return;
+            model.predict(video).then(predictions => {
+                const now = Date.now();
 
-    model.detect(video).then(predictions => {
-        const currentPersonCount = predictions.filter(prediction => 
-            prediction.class === "person" && prediction.score > 0.6
-        ).length;
+                const currentPersonCount = predictions.filter(prediction => 
+                    prediction.class === 'person' && prediction.confidence > 0.6
+                ).length;
 
-        const now = Date.now();
-        if (currentPersonCount > 0) {
-            if (!lastDetectionTime || (now - lastDetectionTime) >= 60000) {
-                // Nova detecção permitida após 1 minuto
-                toggleTimer();
-                lastDetectionTime = now;
-            }
+                if (currentPersonCount > 0) {
+                    if (!lastDetectionTime || (now - lastDetectionTime) >= 60000) {
+                        toggleTimer();
+                        lastDetectionTime = now;
+                    }
+                }
+
+                requestAnimationFrame(detectPerson);
+            });
         }
-
-        requestAnimationFrame(detectPerson);
-    });
-}
 
         function toggleTimer() {
             if (!startTime) {
@@ -179,35 +177,30 @@ function detectPerson() {
             tableBody.appendChild(row);
         }
 
-function downloadCSV() {
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Número,Tempo Decorrido (s),Data e Hora\n";  // Cabeçalho da tabela
+        function downloadCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Número,Tempo Decorrido (s),Data e Hora\n";
 
-    // Itera sobre os registros da tabela e cria o conteúdo do CSV
-    const rows = tableBody.querySelectorAll('tr');
-    if (rows.length === 0) {
-        alert("Nenhum dado disponível para exportar.");
-        return; // Sai da função caso não haja dados
-    }
+            const rows = tableBody.querySelectorAll('tr');
+            if (rows.length === 0) {
+                alert("Nenhum dado disponível para exportar.");
+                return;
+            }
 
-    rows.forEach((row, index) => {
-        const cells = row.querySelectorAll('td');
-        const rowData = Array.from(cells).map(cell => `"${cell.textContent.replace(/"/g, '""')}"`).join(",");
-        csvContent += rowData + "\n";
-    });
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                const rowData = Array.from(cells).map(cell => `"${cell.textContent.replace(/"/g, '""')}"`).join(",");
+                csvContent += rowData + "\n";
+            });
 
-    // Criação do link para download do CSV
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', 'log_pessoas.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-
-
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', 'log_pessoas.csv');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
 
         function clearTable() {
             tableBody.innerHTML = '';
