@@ -63,18 +63,16 @@
     let detectouAnteriormente = false;
     let podeContar = true;
 
-    // Função para acessar a câmera traseira
     async function acessarCamera() {
         try {
             const constraints = {
-    video: {
-        facingMode: { exact: "environment" },
-        width: { ideal: 640 }, // Menor resolução
-        height: { ideal: 360 },
-        frameRate: { ideal: 60 }
-    }
-};
-
+                video: {
+                    facingMode: { exact: "environment" },
+                    width: { ideal: 640 },
+                    height: { ideal: 360 },
+                    frameRate: { ideal: 60 }
+                }
+            };
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             video.srcObject = stream;
             video.play();
@@ -86,54 +84,42 @@
         }
     }
 
-    // Função para detectar cor azul dentro da faixa horizontal com 1cm de altura
     function detectarAzul() {
-        const larguraDetecao = 100; // A largura da área de detecção cobre toda a largura do vídeo
-        const alturaDetecao = 37.8; // 1 cm em pixels (~37.8px)
-  const x = (canvas.width / 2) - (larguraDetecao / 2); // Centraliza a área horizontalmente
+        const larguraDetecao = 100;
+        const alturaDetecao = 37.8;
+        const x = (canvas.width / 2) - (larguraDetecao / 2);
+        const y = (canvas.height / 2) - (alturaDetecao / 2);
 
-        // Atualiza o tamanho do canvas para o tamanho do vídeo
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
 
-        // Desenha o vídeo no canvas
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Coordenadas da área de detecção para cobrir toda a largura do vídeo com 1cm de altura
-        const x = 0; // A posição X começa no início da largura do vídeo
-        const y = (canvas.height / 2) - (alturaDetecao / 2); // Coloca a área de detecção no meio da altura do vídeo
-
-        // Atualiza o estilo da área de detecção no DOM
         detectarArea.style.width = `${larguraDetecao}px`;
         detectarArea.style.height = `${alturaDetecao}px`;
         detectarArea.style.left = `${x}px`;
         detectarArea.style.top = `${y}px`;
 
-        // Captura os dados da área do canvas correspondente à área de detecção
         const frame = ctx.getImageData(x, y, larguraDetecao, alturaDetecao).data;
 
         let encontrouAzul = false;
 
-        // Verifica se há pixels azuis na área
-       for (let i = 0; i < frame.length; i += 40) { // Salto de 10 pixels (4 canais RGBA * 10)
-    const r = frame[i];
-    const g = frame[i + 1];
-    const b = frame[i + 2];
-    if (b > 150 && r < 100 && g < 100) {
-        encontrouAzul = true;
-        break;
-    }
-}
+        for (let i = 0; i < frame.length; i += 40) {
+            const r = frame[i];
+            const g = frame[i + 1];
+            const b = frame[i + 2];
+            if (b > 150 && r < 100 && g < 100) {
+                encontrouAzul = true;
+                break;
+            }
+        }
 
-
-        // Lógica para contar apenas uma vez quando o objeto azul entra na faixa
         if (encontrouAzul && !detectouAnteriormente && podeContar) {
             contador++;
             contadorEl.textContent = contador;
             detectouAnteriormente = true;
-            podeContar = false; // Desabilita a contagem temporariamente
+            podeContar = false;
 
-            // Aguarda 1 segundo antes de permitir nova contagem
             setTimeout(() => {
                 podeContar = true;
             }, 200);
@@ -141,15 +127,14 @@
             detectouAnteriormente = false;
         }
 
-        // Solicita o próximo frame para detecção contínua
         requestAnimationFrame(detectarAzul);
     }
 
-    // Inicia a câmera e a detecção
     acessarCamera().then(() => {
         video.addEventListener('playing', detectarAzul);
     });
 </script>
+
 
 
 </body>
